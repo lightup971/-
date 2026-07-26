@@ -82,37 +82,54 @@
   function cell(r, off) { return off < r.length ? r[off] : ''; }
   function notEmpty(v) { return v != null && String(v).trim() !== ''; }
 
+  /* 붙여넣기 시작 열이 H가 아니어도(한두 칸 밀려도) 자동 정렬.
+     첫 번째 '주민번호' 패턴 셀 = 부인주민(H기준 offset 2)으로 보고 shift 계산 */
+  function detectShift(matrix) {
+    var rrn = /\d{6}\s*-\s*\d{6,7}/;
+    for (var i = 0; i < matrix.length; i++) {
+      var r = matrix[i];
+      for (var j = 0; j < r.length; j++) {
+        if (rrn.test(String(r[j] == null ? '' : r[j]))) return j - OFF.부인주민;
+      }
+    }
+    return 0;
+  }
+
   /* ---------- 변환: 붙여넣은 블록 → ERP 데이터 ---------- */
   function buildRows(matrix, opt) {
     opt = opt || {};
     var cfg = Object.assign({}, DEFAULTS, opt);
-    var out = [], warnings = { missingCode: [], fallback: 0, badBlockWidth: false, orphan: 0 };
-    var current = null;
+    var shift = detectShift(matrix);
+    var O = {}; Object.keys(OFF).forEach(function (k) { O[k] = OFF[k] + shift; });
+
+    var out = [], current = null;
+    var warnings = { missingCode: [], fallback: 0, orphan: 0, shift: shift,
+      lines: matrix.length, cols: matrix.length ? matrix[0].length : 0, groups: 0, ymOk: 0 };
 
     matrix.forEach(function (r) {
-      if (r.length && r.length < 15) warnings.badBlockWidth = true; // H~AC 미만이면 열 어긋남 의심
-
-      if (notEmpty(cell(r, OFF.부인자명))) {
-        var parsed = parseNameCode(cell(r, OFF.해당자명));
+      if (O.부인자명 >= 0 && notEmpty(cell(r, O.부인자명))) {
+        warnings.groups++;
+        var parsed = parseNameCode(cell(r, O.해당자명));
         current = { name: parsed.name, code: padCode(parsed.code, cfg.CODE_PAD_LEN) };
       }
-      var ym = parseYm(cell(r, OFF.지급연월));
+      var ym = parseYm(cell(r, O.지급연월));
       if (ym === null) return;
+      warnings.ymOk++;
       if (!current) { warnings.orphan++; return; }
 
       var amt, intax, locint;
       if (cfg.AMOUNT_BASIS === 'DENIED') {
-        amt = toInt(cell(r, OFF.부인소득));
-        intax = toInt(cell(r, OFF.부인소득세)) || 0;
-        locint = toInt(cell(r, OFF.부인지방)) || 0;
+        amt = toInt(cell(r, O.부인소득));
+        intax = toInt(cell(r, O.부인소득세)) || 0;
+        locint = toInt(cell(r, O.부인지방)) || 0;
       } else {
-        amt = toInt(cell(r, OFF.최종소득));
-        intax = toInt(cell(r, OFF.최종소득세));
-        locint = toInt(cell(r, OFF.최종지방));
+        amt = toInt(cell(r, O.최종소득));
+        intax = toInt(cell(r, O.최종소득세));
+        locint = toInt(cell(r, O.최종지방));
         if (amt === null) { // 최종 공란 → 기존 + 부인
-          amt = (toInt(cell(r, OFF.기존소득)) || 0) + (toInt(cell(r, OFF.부인소득)) || 0);
-          intax = (toInt(cell(r, OFF.기존소득세)) || 0) + (toInt(cell(r, OFF.부인소득세)) || 0);
-          locint = (toInt(cell(r, OFF.기존지방)) || 0) + (toInt(cell(r, OFF.부인지방)) || 0);
+          amt = (toInt(cell(r, O.기존소득)) || 0) + (toInt(cell(r, O.부인소득)) || 0);
+          intax = (toInt(cell(r, O.기존소득세)) || 0) + (toInt(cell(r, O.부인소득세)) || 0);
+          locint = (toInt(cell(r, O.기존지방)) || 0) + (toInt(cell(r, O.부인지방)) || 0);
           if (amt > 0) warnings.fallback++;
         }
         intax = intax || 0; locint = locint || 0;

@@ -106,6 +106,10 @@
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   @media(prefers-reduced-motion:reduce){#results.show{animation:none}}
 
+  .diag{font-family:var(--mono);font-size:12.5px;color:var(--ink-soft);background:var(--surface-2);
+    border:1px solid var(--border);border-radius:9px;padding:9px 13px;margin-bottom:16px;line-height:1.7}
+  .diag b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .diag span{color:var(--accent)}
   .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
   @media(max-width:620px){.tiles{grid-template-columns:repeat(2,1fr)}}
   .tile{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
@@ -193,6 +197,7 @@
 
   <section class="card" id="results">
     <p class="eyebrow"><span class="n">2</span>결과 확인 &amp; 다운로드</p>
+    <div id="diag" class="diag"></div>
     <div class="tiles" id="tiles"></div>
     <div id="banners"></div>
     <div class="tablewrap"><table>
@@ -256,21 +261,27 @@
   function cell(r,off){ return off<r.length?r[off]:''; }
   function notEmpty(v){ return v!=null&&String(v).trim()!==''; }
 
+  function detectShift(matrix){ var rrn=/\d{6}\s*-\s*\d{6,7}/;
+    for(var i=0;i<matrix.length;i++){var r=matrix[i];
+      for(var j=0;j<r.length;j++){ if(rrn.test(String(r[j]==null?'':r[j])))return j-OFF.부인주민; } }
+    return 0; }
   function buildRows(matrix,opt){
     opt=opt||{}; var cfg=Object.assign({},DEFAULTS,opt);
-    var out=[],warnings={missingCode:[],fallback:0,badBlockWidth:false,orphan:0},current=null;
+    var shift=detectShift(matrix); var O={}; Object.keys(OFF).forEach(function(k){O[k]=OFF[k]+shift;});
+    var out=[],current=null;
+    var warnings={missingCode:[],fallback:0,orphan:0,shift:shift,
+      lines:matrix.length,cols:matrix.length?matrix[0].length:0,groups:0,ymOk:0};
     matrix.forEach(function(r){
-      if(r.length&&r.length<15)warnings.badBlockWidth=true;
-      if(notEmpty(cell(r,OFF.부인자명))){ var p=parseNameCode(cell(r,OFF.해당자명));
+      if(O.부인자명>=0&&notEmpty(cell(r,O.부인자명))){ warnings.groups++; var p=parseNameCode(cell(r,O.해당자명));
         current={name:p.name,code:padCode(p.code,cfg.CODE_PAD_LEN)}; }
-      var ym=parseYm(cell(r,OFF.지급연월)); if(ym===null)return;
+      var ym=parseYm(cell(r,O.지급연월)); if(ym===null)return; warnings.ymOk++;
       if(!current){warnings.orphan++;return;}
       var amt,intax,locint;
-      if(cfg.AMOUNT_BASIS==='DENIED'){ amt=toInt(cell(r,OFF.부인소득)); intax=toInt(cell(r,OFF.부인소득세))||0; locint=toInt(cell(r,OFF.부인지방))||0; }
-      else{ amt=toInt(cell(r,OFF.최종소득)); intax=toInt(cell(r,OFF.최종소득세)); locint=toInt(cell(r,OFF.최종지방));
-        if(amt===null){ amt=(toInt(cell(r,OFF.기존소득))||0)+(toInt(cell(r,OFF.부인소득))||0);
-          intax=(toInt(cell(r,OFF.기존소득세))||0)+(toInt(cell(r,OFF.부인소득세))||0);
-          locint=(toInt(cell(r,OFF.기존지방))||0)+(toInt(cell(r,OFF.부인지방))||0);
+      if(cfg.AMOUNT_BASIS==='DENIED'){ amt=toInt(cell(r,O.부인소득)); intax=toInt(cell(r,O.부인소득세))||0; locint=toInt(cell(r,O.부인지방))||0; }
+      else{ amt=toInt(cell(r,O.최종소득)); intax=toInt(cell(r,O.최종소득세)); locint=toInt(cell(r,O.최종지방));
+        if(amt===null){ amt=(toInt(cell(r,O.기존소득))||0)+(toInt(cell(r,O.부인소득))||0);
+          intax=(toInt(cell(r,O.기존소득세))||0)+(toInt(cell(r,O.부인소득세))||0);
+          locint=(toInt(cell(r,O.기존지방))||0)+(toInt(cell(r,O.부인지방))||0);
           if(amt>0)warnings.fallback++; }
         intax=intax||0; locint=locint||0; }
       if(amt===null||amt<=0)return;
@@ -346,6 +357,11 @@
     var people={}; rows.forEach(function(r){people[r.name]=1;});
     var nPeople=Object.keys(people).length;
 
+    // 진단 표시줄 (항상 표시) — 무엇이 읽혔는지 그대로 보여줌
+    $('diag').innerHTML='읽은 줄 <b>'+w.lines+'</b> · 첫 줄 열 <b>'+w.cols+'</b>'
+      +(w.shift?' <span title="시작 열 자동보정">(열 '+(w.shift>0?'+':'')+w.shift+' 보정)</span>':'')
+      +' · 소득자명 인식 <b>'+w.groups+'</b> · 지급연월 인식 <b>'+w.ymOk+'</b> · 생성 <b>'+rows.length+'</b>';
+
     $('tiles').innerHTML=[
       ['생성 행수',rows.length,''],
       ['소득자 수',nPeople,''],
@@ -354,14 +370,13 @@
     ].map(function(t){return '<div class="tile '+t[2]+'"><div class="v">'+t[1]+'</div><div class="l">'+t[0]+'</div></div>';}).join('');
 
     var b='';
-    if(w.orphan>0) b+=banner('warn','⚠','선택 범위 맨 앞에 <b>소득자명 없는 행 '+w.orphan+'개</b>가 있어 건너뛰었습니다. 소득자 그룹의 첫 행부터 선택하세요.');
-    if(w.badBlockWidth) b+=banner('warn','⚠','열 개수가 예상보다 적습니다. <b>H열~AC열</b> 범위를 그대로 복사했는지 확인하세요.');
-    if(w.missingCode.length) b+=banner('warn','⚠','소득자코드가 없는 대상 <b>'+w.missingCode.length+'명</b>: '+w.missingCode.join(', ')+' — 이름 셀 끝에 코드를 적어두거나, 신규면 ERP에 먼저 등록하세요. (해당 행은 코드 빈칸으로 생성됨)');
+    if(w.missingCode.length) b+=banner('warn','⚠','소득자코드가 없는 대상 <b>'+w.missingCode.length+'명</b>: '+esc(w.missingCode.join(', '))+' — 이름 셀 끝에 코드를 적어두거나, 신규면 ERP에 먼저 등록하세요. (해당 행은 코드 빈칸으로 생성됨)');
     if(w.fallback>0) b+=banner('info','ℹ','<b>'+w.fallback+'행</b>은 최종금액 칸이 비어 (해당자 기존 + 부인금액)으로 자동 계산했습니다. 값을 확인해 주세요.');
+    if(w.orphan>0&&rows.length>0) b+=banner('info','ℹ','맨 앞 <b>'+w.orphan+'행</b>은 소득자명 없는 행이라 건너뛰었습니다. (그룹 첫 행부터 선택하면 없어져요)');
     $('banners').innerHTML=b;
 
     if(rows.length===0){
-      $('tbody').innerHTML='<tr><td colspan="13" class="empty">변환된 행이 없습니다. 붙여넣은 범위와 열 순서를 확인하세요.</td></tr>';
+      $('tbody').innerHTML='<tr><td colspan="13">'+diagnose(w)+'</td></tr>';
       $('download').disabled=true; $('fname').textContent='';
     }else{
       $('tbody').innerHTML=rows.map(function(r){var c=r.cells;
@@ -380,18 +395,56 @@
   }
   function banner(t,ic,msg){return '<div class="banner '+t+'"><span class="ic">'+ic+'</span><span>'+msg+'</span></div>';}
   function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+  // 0행일 때 원인을 짚어주는 진단 메시지
+  function diagnose(w){
+    var tips=[];
+    if(w.lines===0){ return '<div class="empty">붙여넣은 내용이 없습니다. 구글시트에서 H열~AC열을 복사해 붙여넣어 주세요.</div>'; }
+    if(w.groups===0){
+      tips.push('소득자명이 있는 행을 찾지 못했습니다 → <b>소득자명(I열)이 포함된 범위(H~AC)</b>를 복사했는지, <b>그룹 첫 행부터</b> 선택했는지 확인하세요.');
+    }
+    if(w.cols<18){
+      tips.push('첫 줄에서 열이 <b>'+w.cols+'개</b>만 감지됐습니다(정상은 약 22개). 이름 칸의 줄바꿈 때문에 줄이 쪼개졌거나 복사 범위가 좁습니다. → H열~AC열 전체를 다시 선택해 복사해 보세요.');
+    }
+    if(w.groups>0&&w.ymOk===0){
+      tips.push('지급연월(L열)을 인식하지 못했습니다 → 복사 범위에 <b>지급연월 열</b>이 빠졌을 수 있습니다.');
+    }
+    if(w.orphan>0&&w.groups===0){
+      tips.push('첫 행이 그룹 중간(소득자명 없는 행)에서 시작했습니다 → 소득자 <b>그룹의 첫 행부터</b> 선택하세요.');
+    }
+    if(!tips.length) tips.push('금액(최종 소득금액 또는 부인 소득금액)이 0이거나 비어 있어 생성 대상이 없습니다.');
+    return '<div class="empty" style="text-align:left;padding:16px 18px">'
+      +'<b>변환된 행이 없습니다.</b> 위 진단값을 참고하세요:<ul style="margin:10px 0 0;padding-left:18px;line-height:1.9">'
+      +tips.map(function(t){return '<li>'+t+'</li>';}).join('')+'</ul></div>';
+  }
   function pad2(n){return('0'+n).slice(-2);}
   function fileName(){var d=new Date();return'ERP업로드_'+d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate())+'_'+pad2(d.getHours())+pad2(d.getMinutes())+'.xlsx';}
 
   function run(){
     var txt=$('input').value;
-    if(!txt.trim()){ $('input').focus(); return; }
-    var matrix=window.ERPCore.parseClipboard(txt);
-    var built=window.ERPCore.buildRows(matrix,{
-      AMOUNT_BASIS:$('basis').value,
-      CODE_PAD_LEN:$('pad').checked?6:0
-    });
-    render(built);
+    if(!txt.trim()){
+      $('diag').innerHTML='붙여넣은 내용이 없습니다.';
+      $('tiles').innerHTML=''; $('banners').innerHTML='';
+      $('tbody').innerHTML='<tr><td colspan="13"><div class="empty">먼저 구글시트 H열~AC열을 복사해 붙여넣어 주세요.</div></td></tr>';
+      $('download').disabled=true; $('fname').textContent='';
+      $('results').classList.add('show');
+      $('input').focus(); return;
+    }
+    try{
+      var matrix=window.ERPCore.parseClipboard(txt);
+      var built=window.ERPCore.buildRows(matrix,{
+        AMOUNT_BASIS:$('basis').value,
+        CODE_PAD_LEN:$('pad').checked?6:0
+      });
+      render(built);
+    }catch(err){
+      $('results').classList.add('show');
+      $('diag').innerHTML='';
+      $('banners').innerHTML=banner('warn','⚠','처리 중 오류가 발생했습니다: <b>'+esc(String(err&&err.message||err))+'</b><br>붙여넣은 데이터 2~3줄을 담당자에게 전달해 주세요.');
+      $('tiles').innerHTML=''; $('tbody').innerHTML='';
+      $('download').disabled=true;
+      $('results').scrollIntoView({behavior:'smooth',block:'nearest'});
+    }
   }
   function download(){
     if(!lastBuilt||!lastBuilt.rows.length)return;
