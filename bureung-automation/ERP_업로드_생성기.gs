@@ -73,6 +73,12 @@ var CONFIG = {
   //             (매뉴얼 방법1 방식)
   AMOUNT_BASIS: 'FINAL',
 
+  // ── 포함 대상 ───────────────────────────────────────────────
+  //  'BOTH'  = 소득부인자(전액부인 0·0·0) + 소득해당자(최종)  ← 기본
+  //  'HAING' = 소득해당자만
+  //  'BUIN'  = 소득부인자만(0·0·0)
+  INCLUDE: 'BOTH',
+
   OUTPUT_SHEET_NAME: 'TSMINC00700_F'  // ERP 업로드 양식 시트명 (건드리지 마세요)
 };
 
@@ -85,8 +91,8 @@ var ERP_LABELS = ['소득자코드','지급연월','귀속년월','지급일','�
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('부릉 자동화')
-    .addItem('① ERP 업로드파일 생성(소득해당자)', 'generateErpUpload')
-    .addItem('② 부인자 삭제 대상 목록', 'generateDenialList')
+    .addItem('① ERP 업로드파일 생성(부인자 0원 + 해당자)', 'generateErpUpload')
+    .addItem('② 부인자 목록 (참고용)', 'generateDenialList')
     .addToUi();
 }
 
@@ -108,74 +114,74 @@ function generateErpUpload() {
   var codeMap = loadCodeMap(ss);
 
   var out = [];
-  var missingCode = [];   // 소득자코드 못 찾은 해당자
+  var missingCode = [];   // 소득자코드 못 찾은 대상
   var fallbackCnt = 0;    // 최종값이 비어 기존+부인으로 계산한 행 수
-  var current = null;     // 현재 그룹의 소득해당자 정보
+  var curBuin = null, curHaing = null;   // 현재 그룹의 부인자 / 해당자
 
+  // ERP_CODES 순서: INCMPER_NO, PAY_YM, RVERS_YM, PAY_DT, BIZAREA_CD,
+  //                 DEPT_CD, WGS_AMT, BIZTP_FG_CD, TAX_RT, INTAX_AMT, LOCINTAX_AMT
+  function erpRow(code, ym, amt, intax, locint) {
+    return [code || '', ym, ym, lastDayYmd(ym), CONFIG.BIZAREA_CD, CONFIG.DEPT_CD,
+            String(amt), CONFIG.BIZTP_FG_CD, CONFIG.TAX_RT, String(intax), String(locint)];
+  }
   for (var r = CONFIG.DATA_START_ROW; r <= lastRow; r++) {
     var row = values[r - 1];
 
-    // 새 그룹 시작(부인자명이 있는 행)에서 소득해당자 정보 갱신
+    // 새 그룹 시작(부인자명이 있는 행)에서 부인자·해당자 정보 갱신
     if (notEmpty(cell(row, CONFIG.COL.부인자명))) {
-      var rrn = normalizeRrn(cell(row, CONFIG.COL.해당자_주민번호));
-      // 소득자코드 우선순위: (1) 지정된 코드 열 → (2) 이름 셀 끝 숫자 → (3) 주민번호 매핑
-      var parsed = parseNameCode(cell(row, CONFIG.COL.해당자명));
-      var code = CONFIG.COL.해당자_소득자코드 > 0
-                 ? String(cell(row, CONFIG.COL.해당자_소득자코드) || '').trim()
-                 : parsed.code;
-      if (!code && rrn && codeMap[rrn]) code = codeMap[rrn];
-      current = { rrn: rrn, name: parsed.name, code: padCode(code) };
+      var pb = parseNameCode(cell(row, CONFIG.COL.부인자명));
+      var brrn = normalizeRrn(cell(row, CONFIG.COL.부인_주민번호));
+      var bcode = pb.code; if (!bcode && brrn && codeMap[brrn]) bcode = codeMap[brrn];
+      curBuin = { name: pb.name, code: padCode(bcode) };
+
+      var ph = parseNameCode(cell(row, CONFIG.COL.해당자명));
+      var hrrn = normalizeRrn(cell(row, CONFIG.COL.해당자_주민번호));
+      var hcode = CONFIG.COL.해당자_소득자코드 > 0
+                  ? String(cell(row, CONFIG.COL.해당자_소득자코드) || '').trim() : ph.code;
+      if (!hcode && hrrn && codeMap[hrrn]) hcode = codeMap[hrrn];
+      curHaing = { name: ph.name, code: padCode(hcode) };
     }
 
     var ym = parseYm(cell(row, CONFIG.COL.지급연월));
     if (ym === null) continue;                                  // 금액 없는 행 skip
     if (scope && (r < scope.top || r > scope.bottom)) continue; // 선택 범위 밖 skip
-    if (!current) continue;
+    if (!curBuin) continue;
 
-    // 금액 산정 (DENIED = 부인금액 그대로 / FINAL = 최종값, 비면 기존+부인 폴백)
-    var amt, intax, locint;
-    if (CONFIG.AMOUNT_BASIS === 'DENIED') {
-      amt    = toInt(cell(row, CONFIG.COL.부인_소득금액));
-      intax  = toInt(cell(row, CONFIG.COL.부인_소득세)) || 0;
-      locint = toInt(cell(row, CONFIG.COL.부인_지방세)) || 0;
-    } else {
-      amt    = toInt(cell(row, CONFIG.COL.최종_소득금액));
-      intax  = toInt(cell(row, CONFIG.COL.최종_소득세));
-      locint = toInt(cell(row, CONFIG.COL.최종_지방세));
-      if (amt === null) {  // 최종값 공란 → 기존(해당자) + 부인 으로 계산
-        amt    = (toInt(cell(row, CONFIG.COL.해당자_기존_소득금액)) || 0) + (toInt(cell(row, CONFIG.COL.부인_소득금액)) || 0);
-        intax  = (toInt(cell(row, CONFIG.COL.해당자_기존_소득세))   || 0) + (toInt(cell(row, CONFIG.COL.부인_소득세))   || 0);
-        locint = (toInt(cell(row, CONFIG.COL.해당자_기존_지방세))   || 0) + (toInt(cell(row, CONFIG.COL.부인_지방세))   || 0);
-        if (amt > 0) fallbackCnt++;
+    // 소득부인자: 전액부인 → 0 | 0 | 0
+    if (CONFIG.INCLUDE !== 'HAING') {
+      if (!curBuin.code) missingCode.push((curBuin.name || '(이름없음)') + ' (부인자)');
+      out.push(erpRow(curBuin.code, ym, 0, 0, 0));
+    }
+
+    // 소득해당자: 최종금액 (DENIED = 부인금액 / FINAL = 최종값, 비면 기존+부인 폴백)
+    if (CONFIG.INCLUDE !== 'BUIN') {
+      var amt, intax, locint;
+      if (CONFIG.AMOUNT_BASIS === 'DENIED') {
+        amt    = toInt(cell(row, CONFIG.COL.부인_소득금액));
+        intax  = toInt(cell(row, CONFIG.COL.부인_소득세)) || 0;
+        locint = toInt(cell(row, CONFIG.COL.부인_지방세)) || 0;
+      } else {
+        amt    = toInt(cell(row, CONFIG.COL.최종_소득금액));
+        intax  = toInt(cell(row, CONFIG.COL.최종_소득세));
+        locint = toInt(cell(row, CONFIG.COL.최종_지방세));
+        if (amt === null) {  // 최종값 공란 → 기존(해당자) + 부인 으로 계산
+          amt    = (toInt(cell(row, CONFIG.COL.해당자_기존_소득금액)) || 0) + (toInt(cell(row, CONFIG.COL.부인_소득금액)) || 0);
+          intax  = (toInt(cell(row, CONFIG.COL.해당자_기존_소득세))   || 0) + (toInt(cell(row, CONFIG.COL.부인_소득세))   || 0);
+          locint = (toInt(cell(row, CONFIG.COL.해당자_기존_지방세))   || 0) + (toInt(cell(row, CONFIG.COL.부인_지방세))   || 0);
+          if (amt > 0) fallbackCnt++;
+        }
+        intax  = intax  || 0;
+        locint = locint || 0;
       }
-      intax  = intax  || 0;
-      locint = locint || 0;
+      if (amt !== null && amt > 0) {
+        if (!curHaing.code) missingCode.push((curHaing.name || '(이름없음)') + ' (해당자)');
+        out.push(erpRow(curHaing.code, ym, amt, intax, locint));
+      }
     }
-    if (amt === null || amt <= 0) continue;  // 지급액 0/음수 행 skip
-
-    if (!current.code) {
-      missingCode.push((current.name || '(이름없음)') + ' / ' + (current.rrn || '(주민번호없음)'));
-    }
-
-    // ERP_CODES 순서대로: INCMPER_NO, PAY_YM, RVERS_YM, PAY_DT, BIZAREA_CD,
-    //                     DEPT_CD, WGS_AMT, BIZTP_FG_CD, TAX_RT, INTAX_AMT, LOCINTAX_AMT
-    out.push([
-      current.code || '',        // INCMPER_NO (소득자코드)
-      ym,                        // PAY_YM  (지급연월)  ⟵ 귀속=지급 동일 처리
-      ym,                        // RVERS_YM(귀속년월)
-      lastDayYmd(ym),            // PAY_DT  (지급일=해당월 말일)
-      CONFIG.BIZAREA_CD,
-      CONFIG.DEPT_CD,
-      String(amt),               // WGS_AMT (지급액)
-      CONFIG.BIZTP_FG_CD,
-      CONFIG.TAX_RT,
-      String(intax),             // INTAX_AMT
-      String(locint)             // LOCINTAX_AMT
-    ]);
   }
 
   if (out.length === 0) {
-    ui.alert('생성할 데이터 없음', '조건에 맞는 소득해당자 행을 찾지 못했습니다.\n(지급연월·최종 소득금액이 채워진 행만 대상입니다.)', ui.ButtonSet.OK);
+    ui.alert('생성할 데이터 없음', '조건에 맞는 행을 찾지 못했습니다.\n(지급연월이 채워진 행만 대상이며, 소득자 그룹 첫 행부터 선택하세요.)', ui.ButtonSet.OK);
     return;
   }
 

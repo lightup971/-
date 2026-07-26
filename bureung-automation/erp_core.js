@@ -14,7 +14,9 @@
   var DEFAULTS = {
     COMPANY_CD: '1000', COMPANY_NM: '(주)부릉', BIZR_NO: '2068673707',
     BIZAREA_CD: '1000', DEPT_CD: 'AE0000000', BIZTP_FG_CD: '940918', TAX_RT: '3',
-    CODE_PAD_LEN: 6, AMOUNT_BASIS: 'FINAL', SHEET_NAME: 'TSMINC00700_F'
+    CODE_PAD_LEN: 6, AMOUNT_BASIS: 'FINAL',
+    INCLUDE: 'BOTH',          // 'BOTH'=부인자+해당자, 'HAING'=해당자만, 'BUIN'=부인자만
+    SHEET_NAME: 'TSMINC00700_F'
   };
 
   // 붙여넣는 블록은 H열부터 AC열까지 → 0-based 오프셋
@@ -102,48 +104,68 @@
     var shift = detectShift(matrix);
     var O = {}; Object.keys(OFF).forEach(function (k) { O[k] = OFF[k] + shift; });
 
-    var out = [], current = null;
+    var out = [], curBuin = null, curHaing = null;
     var warnings = { missingCode: [], fallback: 0, orphan: 0, shift: shift,
-      lines: matrix.length, cols: matrix.length ? matrix[0].length : 0, groups: 0, ymOk: 0 };
+      lines: matrix.length, cols: matrix.length ? matrix[0].length : 0,
+      groups: 0, ymOk: 0, buin: 0, haing: 0 };
+
+    function noteMissing(name) {
+      if (name && warnings.missingCode.indexOf(name) < 0) warnings.missingCode.push(name);
+    }
+    function erpRow(code, ym, amt, intax, locint) {
+      return [code || '', ym, ym, lastDayYmd(ym), cfg.BIZAREA_CD, cfg.DEPT_CD,
+              String(amt), cfg.BIZTP_FG_CD, cfg.TAX_RT, String(intax), String(locint)];
+    }
 
     matrix.forEach(function (r) {
       if (O.부인자명 >= 0 && notEmpty(cell(r, O.부인자명))) {
         warnings.groups++;
-        var parsed = parseNameCode(cell(r, O.해당자명));
-        current = { name: parsed.name, code: padCode(parsed.code, cfg.CODE_PAD_LEN) };
+        var pb = parseNameCode(cell(r, O.부인자명));
+        var ph = parseNameCode(cell(r, O.해당자명));
+        curBuin  = { name: pb.name, code: padCode(pb.code, cfg.CODE_PAD_LEN) };
+        curHaing = { name: ph.name, code: padCode(ph.code, cfg.CODE_PAD_LEN) };
       }
       var ym = parseYm(cell(r, O.지급연월));
       if (ym === null) return;
       warnings.ymOk++;
-      if (!current) { warnings.orphan++; return; }
+      if (!curBuin) { warnings.orphan++; return; }
 
-      var amt, intax, locint;
-      if (cfg.AMOUNT_BASIS === 'DENIED') {
-        amt = toInt(cell(r, O.부인소득));
-        intax = toInt(cell(r, O.부인소득세)) || 0;
-        locint = toInt(cell(r, O.부인지방)) || 0;
-      } else {
-        amt = toInt(cell(r, O.최종소득));
-        intax = toInt(cell(r, O.최종소득세));
-        locint = toInt(cell(r, O.최종지방));
-        if (amt === null) { // 최종 공란 → 기존 + 부인
-          amt = (toInt(cell(r, O.기존소득)) || 0) + (toInt(cell(r, O.부인소득)) || 0);
-          intax = (toInt(cell(r, O.기존소득세)) || 0) + (toInt(cell(r, O.부인소득세)) || 0);
-          locint = (toInt(cell(r, O.기존지방)) || 0) + (toInt(cell(r, O.부인지방)) || 0);
-          if (amt > 0) warnings.fallback++;
-        }
-        intax = intax || 0; locint = locint || 0;
+      // 소득부인자: 전액부인 → 0 | 0 | 0
+      if (cfg.INCLUDE !== 'HAING') {
+        var bMiss = !curBuin.code;
+        if (bMiss) noteMissing((curBuin.name || '(이름없음)') + '(부인자)');
+        out.push({ kind: '부인', name: curBuin.name, missing: bMiss,
+          cells: erpRow(curBuin.code, ym, 0, 0, 0) });
+        warnings.buin++;
       }
-      if (amt === null || amt <= 0) return;
 
-      var missing = !current.code;
-      if (missing && warnings.missingCode.indexOf(current.name) < 0) warnings.missingCode.push(current.name || '(이름없음)');
-
-      out.push({
-        cells: [current.code || '', ym, ym, lastDayYmd(ym), cfg.BIZAREA_CD, cfg.DEPT_CD,
-                String(amt), cfg.BIZTP_FG_CD, cfg.TAX_RT, String(intax), String(locint)],
-        name: current.name, missing: missing
-      });
+      // 소득해당자: 최종 소득금액 (비면 기존 + 부인 폴백)
+      if (cfg.INCLUDE !== 'BUIN') {
+        var amt, intax, locint;
+        if (cfg.AMOUNT_BASIS === 'DENIED') {
+          amt = toInt(cell(r, O.부인소득));
+          intax = toInt(cell(r, O.부인소득세)) || 0;
+          locint = toInt(cell(r, O.부인지방)) || 0;
+        } else {
+          amt = toInt(cell(r, O.최종소득));
+          intax = toInt(cell(r, O.최종소득세));
+          locint = toInt(cell(r, O.최종지방));
+          if (amt === null) {
+            amt = (toInt(cell(r, O.기존소득)) || 0) + (toInt(cell(r, O.부인소득)) || 0);
+            intax = (toInt(cell(r, O.기존소득세)) || 0) + (toInt(cell(r, O.부인소득세)) || 0);
+            locint = (toInt(cell(r, O.기존지방)) || 0) + (toInt(cell(r, O.부인지방)) || 0);
+            if (amt > 0) warnings.fallback++;
+          }
+          intax = intax || 0; locint = locint || 0;
+        }
+        if (amt !== null && amt > 0) {
+          var hMiss = !curHaing.code;
+          if (hMiss) noteMissing((curHaing.name || '(이름없음)') + '(해당자)');
+          out.push({ kind: '해당', name: curHaing.name, missing: hMiss,
+            cells: erpRow(curHaing.code, ym, amt, intax, locint) });
+          warnings.haing++;
+        }
+      }
     });
     return { rows: out, warnings: warnings, cfg: cfg };
   }
