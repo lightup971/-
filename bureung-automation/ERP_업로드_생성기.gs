@@ -47,10 +47,14 @@ var CONFIG = {
     해당자_소득자코드: 0  // 시트에 소득자코드 열이 있으면 그 열번호를, 없으면 0
   },
 
-  // ── 소득자코드(INCMPER_NO) 매핑 ─────────────────────────────
+  // ── 소득자코드(INCMPER_NO) 처리 ─────────────────────────────
   //  ERP 양식엔 이름/주민번호 칸이 없어 '소득자코드'로만 소득자를 식별합니다.
-  //  아래 이름의 시트를 만들어 [A열=주민번호, B열=소득자코드]로 채워두면
-  //  주민번호를 보고 소득자코드를 자동으로 채워줍니다. (첫 행은 제목행)
+  //  이 시트는 소득자코드를 '해당자 이름 셀' 맨 끝 숫자로 적어두므로(예: "김승수\n36510"),
+  //  그 마지막 숫자 토큰을 소득자코드로 자동 추출합니다.
+  CODE_PAD_LEN: 6,          // 숫자 코드를 이 자리수로 0 채움 (예: 2077→002077). 0이면 끄기.
+
+  //  (선택) 이름 셀에 코드가 없을 때만 쓰는 보조 매핑 시트.
+  //  [A열=주민번호, B열=소득자코드], 첫 행은 제목행. 없으면 무시됩니다.
   CODE_MAP_SHEET: '소득자코드매핑',
 
   // ── ERP 고정값 (매뉴얼 기준) ────────────────────────────────
@@ -113,12 +117,14 @@ function generateErpUpload() {
 
     // 새 그룹 시작(부인자명이 있는 행)에서 소득해당자 정보 갱신
     if (notEmpty(cell(row, CONFIG.COL.부인자명))) {
-      var rrn  = normalizeRrn(cell(row, CONFIG.COL.해당자_주민번호));
-      var name = String(cell(row, CONFIG.COL.해당자명) || '').trim();
+      var rrn = normalizeRrn(cell(row, CONFIG.COL.해당자_주민번호));
+      // 소득자코드 우선순위: (1) 지정된 코드 열 → (2) 이름 셀 끝 숫자 → (3) 주민번호 매핑
+      var parsed = parseNameCode(cell(row, CONFIG.COL.해당자명));
       var code = CONFIG.COL.해당자_소득자코드 > 0
-                 ? String(cell(row, CONFIG.COL.해당자_소득자코드) || '').trim() : '';
+                 ? String(cell(row, CONFIG.COL.해당자_소득자코드) || '').trim()
+                 : parsed.code;
       if (!code && rrn && codeMap[rrn]) code = codeMap[rrn];
-      current = { rrn: rrn, name: name, code: code };
+      current = { rrn: rrn, name: parsed.name, code: padCode(code) };
     }
 
     var ym = parseYm(cell(row, CONFIG.COL.지급연월));
@@ -182,6 +188,9 @@ function generateErpUpload() {
   if (fallbackCnt > 0) {
     msg += '\n\nℹ️ ' + fallbackCnt + '건은 최종금액 칸이 비어 있어 (해당자 기존 + 부인금액)으로 자동 계산했습니다. 값을 한 번 확인해 주세요.';
   }
+  if (CONFIG.CODE_PAD_LEN > 0) {
+    msg += '\n\nℹ️ 소득자코드는 ' + CONFIG.CODE_PAD_LEN + '자리로 0을 채웠습니다(예: 2077→002077). ERP 실제 코드 형식과 다르면 CONFIG.CODE_PAD_LEN=0 으로 끄세요.';
+  }
   if (uniqMissing.length > 0) {
     msg += '\n\n⚠️ 소득자코드(INCMPER_NO)가 비어 있는 대상 ' + uniqMissing.length + '명:\n · '
          + uniqMissing.slice(0, 20).join('\n · ')
@@ -205,18 +214,20 @@ function generateDenialList() {
   var scope   = getSelectionScope(sh, lastRow);
 
   var out = [];
-  var curName = '', curRrn = '';
+  var curName = '', curCode = '', curRrn = '';
   for (var r = CONFIG.DATA_START_ROW; r <= lastRow; r++) {
     var row = values[r - 1];
     if (notEmpty(cell(row, CONFIG.COL.부인자명))) {
-      curName = String(cell(row, CONFIG.COL.부인자명) || '').trim();
+      var p = parseNameCode(cell(row, CONFIG.COL.부인자명));
+      curName = p.name;
+      curCode = padCode(p.code);
       curRrn  = normalizeRrn(cell(row, CONFIG.COL.부인_주민번호));
     }
     var ym  = parseYm(cell(row, CONFIG.COL.지급연월));
     var amt = toInt(cell(row, CONFIG.COL.부인_소득금액));
     if (ym === null || amt === null || amt <= 0) continue;
     if (scope && (r < scope.top || r > scope.bottom)) continue;
-    out.push([curName, curRrn, ym,
+    out.push([curName, curCode, curRrn, ym,
               String(amt),
               String(toInt(cell(row, CONFIG.COL.부인_소득세)) || 0),
               String(toInt(cell(row, CONFIG.COL.부인_지방세)) || 0)]);
@@ -226,7 +237,7 @@ function generateDenialList() {
   var newSs = SpreadsheetApp.create('부인자삭제목록_' + stamp());
   var ns = newSs.getActiveSheet();
   ns.setName('부인자삭제대상');
-  var header = ['소득부인자명', '주민번호', '귀속/지급연월', '소득금액', '소득세', '지방소득세'];
+  var header = ['소득부인자명', '소득자코드', '주민번호', '귀속/지급연월', '소득금액', '소득세', '지방소득세'];
   ns.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold');
   ns.getRange(2, 1, out.length, header.length).setNumberFormat('@').setValues(out);
   ns.autoResizeColumns(1, header.length);
@@ -314,6 +325,29 @@ function toInt(v) {
   var n = Number(String(v).replace(/[, ]/g, ''));
   if (isNaN(n)) return null;
   return Math.round(n);
+}
+
+/** 이름 셀 "홍길동\n055191" / "홍길동 861" → {name:'홍길동', code:'055191'} */
+function parseNameCode(v) {
+  if (v === null || v === undefined) return { name: '', code: '' };
+  var s = String(v).trim();
+  var nums = s.match(/\d+/g);          // 모든 숫자 덩어리
+  var code = nums ? nums[nums.length - 1] : '';  // 맨 끝 숫자 = 소득자코드
+  var name = code
+    ? s.replace(new RegExp('[\\s\\n]*' + code + '[\\s\\n]*$'), '').replace(/[\s\n]+/g, ' ').trim()
+    : s.replace(/[\s\n]+/g, ' ').trim();
+  return { name: name, code: code };
+}
+
+/** 숫자 코드를 CONFIG.CODE_PAD_LEN 자리로 0 채움 (문자/빈값은 그대로) */
+function padCode(code) {
+  if (!code) return '';
+  var c = String(code).trim();
+  var n = CONFIG.CODE_PAD_LEN;
+  if (n > 0 && /^\d+$/.test(c) && c.length < n) {
+    while (c.length < n) c = '0' + c;
+  }
+  return c;
 }
 
 /** 주민번호 정규화: 숫자만 추출 */
