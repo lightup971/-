@@ -835,9 +835,24 @@ function generateManual() {
   const lastDay = getLastDay(year, month);
 
   manualData = raw.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
-    const parts = line.split(/[,\t]/).map(s => s.trim());
-    const name = parts[0];
-    const slackId = parts[1] || '';
+    let name, slackId;
+    const parts = line.split(/[,\t]/).map(s => s.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      // 쉼표/탭 구분: "이름, 슬랙ID"
+      name = parts[0];
+      slackId = parts.slice(1).join(' ').trim();
+    } else {
+      // 구분자 없이 공백만 있는 경우: 마지막 토큰이 이메일/슬랙ID면 분리
+      const ws = line.split(/\s+/);
+      const last = ws[ws.length - 1];
+      if (ws.length > 1 && (/@/.test(last) || /^[UW][A-Z0-9]{6,}$/i.test(last))) {
+        slackId = last;
+        name = ws.slice(0, -1).join(' ');
+      } else {
+        name = line;
+        slackId = '';
+      }
+    }
     return {
       이름: name,
       성명: name,
@@ -908,13 +923,31 @@ async function sendSlack(id, message) {
   const token = document.getElementById('slackToken').value.trim();
   if (!token) throw new Error('Bot Token을 입력해주세요.');
   const PROXY_URL = 'https://script.google.com/a/macros/vroong.com/s/AKfycbzmXkX_Zuh5Kk0ljyqzMVu2choEY3ffJsHFK6loBoUAjcyN3nikVozlPwmgK0ov4xFv/exec';
-  const res = await fetch(PROXY_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ token, channel: id, text: message })
-  });
+  let res;
+  try {
+    res = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ token, channel: id, text: message })
+    });
+  } catch (e) {
+    // 네트워크 자체가 막힌 경우(미리보기 CSP 차단, 프록시 접속 불가 등)
+    throw new Error('발송 서버에 연결할 수 없습니다. 미리보기가 아닌 다운로드한 파일에서, 사내 네트워크로 열어 사용하세요.');
+  }
   const d = await res.json();
-  if (!d.ok) throw new Error(d.error);
+  if (!d.ok) {
+    // 슬랙 API가 돌려준 오류 코드 → 사람이 읽을 수 있게 변환
+    const map = {
+      invalid_auth: 'Bot Token이 유효하지 않습니다 (xoxb-... 확인).',
+      not_authed: 'Bot Token이 비어 있거나 인증되지 않았습니다.',
+      account_inactive: '토큰에 연결된 슬랙 앱이 비활성/미설치 상태입니다.',
+      missing_scope: '슬랙 앱 권한(scope)이 부족합니다. chat:write, users:read.email 추가 필요.',
+      users_not_found: '해당 이메일/ID의 슬랙 사용자를 찾을 수 없습니다.',
+      channel_not_found: '슬랙 사용자/채널을 찾을 수 없습니다 (ID·이메일 확인).',
+      not_in_channel: '봇이 해당 대화에 접근할 수 없습니다.'
+    };
+    throw new Error(map[d.error] || ('슬랙 오류: ' + d.error));
+  }
 }
 
 async function sendOne(i) {
@@ -922,13 +955,13 @@ async function sendOne(i) {
   const statusEl = document.getElementById('pstatus-' + i);
   statusEl.innerHTML = '<span class="badge badge-info">발송중...</span>';
   try {
-    if (!p.슬랙ID) throw new Error('슬랙 ID / 이메일 없음');
+    if (!p.슬랙ID) throw new Error('슬랙 ID / 이메일이 없습니다. 직접 입력 시 "이름, 이메일" 형식으로 쉼표를 넣어주세요.');
     await sendSlack(p.슬랙ID, buildMessage(p));
     processedData[i]._status = 'done';
     statusEl.innerHTML = '<span class="badge badge-success"><i class="ti ti-check"></i> 완료</span>';
   } catch(e) {
     processedData[i]._status = 'fail';
-    statusEl.innerHTML = `<span class="badge badge-danger" title="${e.message}">실패</span>`;
+    statusEl.innerHTML = `<span class="badge badge-danger" title="${e.message}" style="cursor:help;">실패</span>`;
   }
 }
 
