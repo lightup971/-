@@ -14,7 +14,7 @@
   var DEFAULTS = {
     COMPANY_CD: '1000', COMPANY_NM: '(주)부릉', BIZR_NO: '2068673707',
     BIZAREA_CD: '1000', DEPT_CD: 'AE0000000', BIZTP_FG_CD: '940918', TAX_RT: '3',
-    CODE_PAD_LEN: 6, AMOUNT_BASIS: 'FINAL',
+    CODE_PAD_LEN: 6,
     INCLUDE: 'BOTH',          // 'BOTH'=부인자+해당자, 'HAING'=해당자만, 'BUIN'=부인자만
     SHEET_NAME: 'TSMINC00700_F'
   };
@@ -22,8 +22,9 @@
   // 붙여넣는 블록은 H열부터 AC열까지 → 0-based 오프셋
   var OFF = {
     부인자명: 1, 부인주민: 2, 지급연월: 4, 부인소득: 5, 부인소득세: 8, 부인지방: 9,
-    해당자명: 14, 해당주민: 15, 기존소득: 16, 기존소득세: 17, 기존지방: 18,
-    최종소득: 19, 최종소득세: 20, 최종지방: 21
+    부인최종소득: 11, 부인최종소득세: 12, 부인최종지방: 13,      // S,T,U = 부인자 최종금액
+    해당자명: 14, 해당주민: 15, 해당기존소득: 16, 해당기존소득세: 17, 해당기존지방: 18, // X,Y,Z
+    최종소득: 19, 최종소득세: 20, 최종지방: 21                    // AA,AB,AC = 해당자 최종금액
   };
   var BLOCK_WIDTH = 22; // H..AC
 
@@ -130,34 +131,30 @@
       warnings.ymOk++;
       if (!curBuin) { warnings.orphan++; return; }
 
-      // 소득부인자: 전액부인 → 0 | 0 | 0
+      // 소득부인자: 최종금액 = S·T·U 열 (전액부인이면 0, 부분부인이면 잔여액)
       if (cfg.INCLUDE !== 'HAING') {
+        var bAmt = toInt(cell(r, O.부인최종소득)); if (bAmt === null) bAmt = 0;
+        var bIntax = toInt(cell(r, O.부인최종소득세)) || 0;
+        var bLoc = toInt(cell(r, O.부인최종지방)) || 0;
         var bMiss = !curBuin.code;
         if (bMiss) noteMissing((curBuin.name || '(이름없음)') + '(부인자)');
         out.push({ kind: '부인', name: curBuin.name, missing: bMiss,
-          cells: erpRow(curBuin.code, ym, 0, 0, 0) });
+          cells: erpRow(curBuin.code, ym, bAmt, bIntax, bLoc) });
         warnings.buin++;
       }
 
-      // 소득해당자: 최종 소득금액 (비면 기존 + 부인 폴백)
+      // 소득해당자: 최종금액 = AA·AB·AC 열 (비면 해당자기존 X + 부인 M 폴백)
       if (cfg.INCLUDE !== 'BUIN') {
-        var amt, intax, locint;
-        if (cfg.AMOUNT_BASIS === 'DENIED') {
-          amt = toInt(cell(r, O.부인소득));
-          intax = toInt(cell(r, O.부인소득세)) || 0;
-          locint = toInt(cell(r, O.부인지방)) || 0;
-        } else {
-          amt = toInt(cell(r, O.최종소득));
-          intax = toInt(cell(r, O.최종소득세));
-          locint = toInt(cell(r, O.최종지방));
-          if (amt === null) {
-            amt = (toInt(cell(r, O.기존소득)) || 0) + (toInt(cell(r, O.부인소득)) || 0);
-            intax = (toInt(cell(r, O.기존소득세)) || 0) + (toInt(cell(r, O.부인소득세)) || 0);
-            locint = (toInt(cell(r, O.기존지방)) || 0) + (toInt(cell(r, O.부인지방)) || 0);
-            if (amt > 0) warnings.fallback++;
-          }
-          intax = intax || 0; locint = locint || 0;
+        var amt = toInt(cell(r, O.최종소득));
+        var intax = toInt(cell(r, O.최종소득세));
+        var locint = toInt(cell(r, O.최종지방));
+        if (amt === null) {
+          amt = (toInt(cell(r, O.해당기존소득)) || 0) + (toInt(cell(r, O.부인소득)) || 0);
+          intax = (toInt(cell(r, O.해당기존소득세)) || 0) + (toInt(cell(r, O.부인소득세)) || 0);
+          locint = (toInt(cell(r, O.해당기존지방)) || 0) + (toInt(cell(r, O.부인지방)) || 0);
+          if (amt > 0) warnings.fallback++;
         }
+        intax = intax || 0; locint = locint || 0;
         if (amt !== null && amt > 0) {
           var hMiss = !curHaing.code;
           if (hMiss) noteMissing((curHaing.name || '(이름없음)') + '(해당자)');

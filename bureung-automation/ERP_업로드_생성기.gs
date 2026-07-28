@@ -36,6 +36,9 @@ var CONFIG = {
     부인_소득금액:   13,  // M
     부인_소득세:     16,  // P
     부인_지방세:     17,  // Q
+    부인_최종_소득금액: 19, // S  소득부인자 최종금액(전액부인이면 0, 부분부인이면 잔여액)
+    부인_최종_소득세:   20, // T
+    부인_최종_지방세:   21, // U
     해당자명:        22,  // V  소득해당자(정정 대상자)명
     해당자_주민번호: 23,  // W
     해당자_기존_소득금액: 24, // X  (최종값이 비었을 때 폴백 계산용)
@@ -66,17 +69,14 @@ var CONFIG = {
   BIZTP_FG_CD: '940918',      // 업종구분코드(퀵서비스)
   TAX_RT:      '3',           // 세율(%)
 
-  // ── 지급액 기준 ─────────────────────────────────────────────
-  //  'FINAL'  = 소득해당자 최종금액(AA/AB/AC) 을 업로드 → ERP 월소득을 덮어씀
-  //             (매뉴얼 방법2 엑셀 예시가 최종액 42,100 을 보여줌 → 기본값)
-  //  'DENIED' = 부인자에게서 이관되는 금액(M/P/Q) 만 업로드 → 기존에 '추가'
-  //             (매뉴얼 방법1 방식)
-  AMOUNT_BASIS: 'FINAL',
+  // ── 금액 기준 ───────────────────────────────────────────────
+  //  소득부인자 최종금액 = 시트 S·T·U 열 (전액부인이면 0, 부분부인이면 잔여액)
+  //  소득해당자 최종금액 = 시트 AA·AB·AC 열 (비면 해당자기존 X + 부인 M 폴백)
 
   // ── 포함 대상 ───────────────────────────────────────────────
-  //  'BOTH'  = 소득부인자(전액부인 0·0·0) + 소득해당자(최종)  ← 기본
+  //  'BOTH'  = 소득부인자(S/T/U) + 소득해당자(AA/AB/AC)  ← 기본
   //  'HAING' = 소득해당자만
-  //  'BUIN'  = 소득부인자만(0·0·0)
+  //  'BUIN'  = 소득부인자만
   INCLUDE: 'BOTH',
 
   OUTPUT_SHEET_NAME: 'TSMINC00700_F'  // ERP 업로드 양식 시트명 (건드리지 마세요)
@@ -147,32 +147,28 @@ function generateErpUpload() {
     if (scope && (r < scope.top || r > scope.bottom)) continue; // 선택 범위 밖 skip
     if (!curBuin) continue;
 
-    // 소득부인자: 전액부인 → 0 | 0 | 0
+    // 소득부인자: 최종금액 = S·T·U 열 (전액부인이면 0, 부분부인이면 잔여액)
     if (CONFIG.INCLUDE !== 'HAING') {
+      var bAmt = toInt(cell(row, CONFIG.COL.부인_최종_소득금액)); if (bAmt === null) bAmt = 0;
+      var bIntax = toInt(cell(row, CONFIG.COL.부인_최종_소득세)) || 0;
+      var bLoc = toInt(cell(row, CONFIG.COL.부인_최종_지방세)) || 0;
       if (!curBuin.code) missingCode.push((curBuin.name || '(이름없음)') + ' (부인자)');
-      out.push(erpRow(curBuin.code, ym, 0, 0, 0));
+      out.push(erpRow(curBuin.code, ym, bAmt, bIntax, bLoc));
     }
 
-    // 소득해당자: 최종금액 (DENIED = 부인금액 / FINAL = 최종값, 비면 기존+부인 폴백)
+    // 소득해당자: 최종금액 = AA·AB·AC 열 (비면 해당자기존 X + 부인 M 폴백)
     if (CONFIG.INCLUDE !== 'BUIN') {
-      var amt, intax, locint;
-      if (CONFIG.AMOUNT_BASIS === 'DENIED') {
-        amt    = toInt(cell(row, CONFIG.COL.부인_소득금액));
-        intax  = toInt(cell(row, CONFIG.COL.부인_소득세)) || 0;
-        locint = toInt(cell(row, CONFIG.COL.부인_지방세)) || 0;
-      } else {
-        amt    = toInt(cell(row, CONFIG.COL.최종_소득금액));
-        intax  = toInt(cell(row, CONFIG.COL.최종_소득세));
-        locint = toInt(cell(row, CONFIG.COL.최종_지방세));
-        if (amt === null) {  // 최종값 공란 → 기존(해당자) + 부인 으로 계산
-          amt    = (toInt(cell(row, CONFIG.COL.해당자_기존_소득금액)) || 0) + (toInt(cell(row, CONFIG.COL.부인_소득금액)) || 0);
-          intax  = (toInt(cell(row, CONFIG.COL.해당자_기존_소득세))   || 0) + (toInt(cell(row, CONFIG.COL.부인_소득세))   || 0);
-          locint = (toInt(cell(row, CONFIG.COL.해당자_기존_지방세))   || 0) + (toInt(cell(row, CONFIG.COL.부인_지방세))   || 0);
-          if (amt > 0) fallbackCnt++;
-        }
-        intax  = intax  || 0;
-        locint = locint || 0;
+      var amt    = toInt(cell(row, CONFIG.COL.최종_소득금액));
+      var intax  = toInt(cell(row, CONFIG.COL.최종_소득세));
+      var locint = toInt(cell(row, CONFIG.COL.최종_지방세));
+      if (amt === null) {  // 최종값 공란 → 해당자 기존 + 부인 으로 계산
+        amt    = (toInt(cell(row, CONFIG.COL.해당자_기존_소득금액)) || 0) + (toInt(cell(row, CONFIG.COL.부인_소득금액)) || 0);
+        intax  = (toInt(cell(row, CONFIG.COL.해당자_기존_소득세))   || 0) + (toInt(cell(row, CONFIG.COL.부인_소득세))   || 0);
+        locint = (toInt(cell(row, CONFIG.COL.해당자_기존_지방세))   || 0) + (toInt(cell(row, CONFIG.COL.부인_지방세))   || 0);
+        if (amt > 0) fallbackCnt++;
       }
+      intax  = intax  || 0;
+      locint = locint || 0;
       if (amt !== null && amt > 0) {
         if (!curHaing.code) missingCode.push((curHaing.name || '(이름없음)') + ' (해당자)');
         out.push(erpRow(curHaing.code, ym, amt, intax, locint));

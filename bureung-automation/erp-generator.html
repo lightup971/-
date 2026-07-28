@@ -174,16 +174,9 @@
       <div class="field">
         <label for="include">포함 대상</label>
         <select id="include">
-          <option value="BOTH">부인자(0원) + 해당자</option>
+          <option value="BOTH">부인자 + 해당자</option>
           <option value="HAING">해당자만</option>
-          <option value="BUIN">부인자만 (0원)</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="basis">해당자 지급액 기준</label>
-        <select id="basis">
-          <option value="FINAL">최종 소득금액 (기존 + 부인)</option>
-          <option value="DENIED">부인 이관금액만 (추가)</option>
+          <option value="BUIN">부인자만</option>
         </select>
       </div>
       <label class="check"><input type="checkbox" id="pad" checked> 소득자코드 6자리로 0 채우기</label>
@@ -231,7 +224,7 @@
   <footer>
     <b>생성물</b>은 실제 ERP 양식 <code class="k">TSMINC00700_F</code>과 컬럼·시트명이 같고, 모든 셀이 텍스트 서식입니다 →
     옴니이솔 [엑셀파일업로드] → 오류검증 → 서식반영.<br>
-    <b>구분</b> · <b>부인</b> = 소득부인자를 전액부인(0·0·0)으로 정정하는 행, <b>해당</b> = 소득해당자에게 최종금액을 반영하는 행. 월별로 두 줄이 함께 생성됩니다.<br>
+    <b>구분</b> · <b>부인</b> = 소득부인자 정정 행(최종금액 = 시트 S·T·U열, 전액부인이면 0), <b>해당</b> = 소득해당자 반영 행(최종금액 = AA·AB·AC열). 월별로 두 줄이 함께 생성됩니다.<br>
     <b>참고</b> · 최종 소득세는 (기존 + 부인) 합산이라 지급액×3%와 몇 원 다를 수 있으며 정상입니다. 소득자코드는 소득자별 이름 셀 끝의 숫자에서 자동 추출됩니다.
   </footer>
 </div>
@@ -244,9 +237,11 @@
   var ERP_LABELS = ['소득자코드','지급연월','귀속년월','지급일','사업장코드','부서코드','지급액','업종구분코드','세율','소득세금액','지방소득세금액'];
   var DEFAULTS = { COMPANY_CD:'1000', COMPANY_NM:'(주)부릉', BIZR_NO:'2068673707',
     BIZAREA_CD:'1000', DEPT_CD:'AE0000000', BIZTP_FG_CD:'940918', TAX_RT:'3',
-    CODE_PAD_LEN:6, AMOUNT_BASIS:'FINAL', INCLUDE:'BOTH', SHEET_NAME:'TSMINC00700_F' };
+    CODE_PAD_LEN:6, INCLUDE:'BOTH', SHEET_NAME:'TSMINC00700_F' };
   var OFF = { 부인자명:1,부인주민:2,지급연월:4,부인소득:5,부인소득세:8,부인지방:9,
-    해당자명:14,해당주민:15,기존소득:16,기존소득세:17,기존지방:18,최종소득:19,최종소득세:20,최종지방:21 };
+    부인최종소득:11,부인최종소득세:12,부인최종지방:13,
+    해당자명:14,해당주민:15,해당기존소득:16,해당기존소득세:17,해당기존지방:18,
+    최종소득:19,최종소득세:20,최종지방:21 };
 
   function parseClipboard(text){
     var rows=[],row=[],field='',i=0,inQ=false;
@@ -294,17 +289,18 @@
         curHaing={name:ph.name,code:padCode(ph.code,cfg.CODE_PAD_LEN)}; }
       var ym=parseYm(cell(r,O.지급연월)); if(ym===null)return; warnings.ymOk++;
       if(!curBuin){warnings.orphan++;return;}
-      if(cfg.INCLUDE!=='HAING'){ var bM=!curBuin.code; if(bM)noteMissing((curBuin.name||'(이름없음)')+'(부인자)');
-        out.push({kind:'부인',name:curBuin.name,missing:bM,cells:erpRow(curBuin.code,ym,0,0,0)}); warnings.buin++; }
+      if(cfg.INCLUDE!=='HAING'){
+        var bAmt=toInt(cell(r,O.부인최종소득)); if(bAmt===null)bAmt=0;
+        var bIx=toInt(cell(r,O.부인최종소득세))||0, bLo=toInt(cell(r,O.부인최종지방))||0;
+        var bM=!curBuin.code; if(bM)noteMissing((curBuin.name||'(이름없음)')+'(부인자)');
+        out.push({kind:'부인',name:curBuin.name,missing:bM,cells:erpRow(curBuin.code,ym,bAmt,bIx,bLo)}); warnings.buin++; }
       if(cfg.INCLUDE!=='BUIN'){
-        var amt,intax,locint;
-        if(cfg.AMOUNT_BASIS==='DENIED'){ amt=toInt(cell(r,O.부인소득)); intax=toInt(cell(r,O.부인소득세))||0; locint=toInt(cell(r,O.부인지방))||0; }
-        else{ amt=toInt(cell(r,O.최종소득)); intax=toInt(cell(r,O.최종소득세)); locint=toInt(cell(r,O.최종지방));
-          if(amt===null){ amt=(toInt(cell(r,O.기존소득))||0)+(toInt(cell(r,O.부인소득))||0);
-            intax=(toInt(cell(r,O.기존소득세))||0)+(toInt(cell(r,O.부인소득세))||0);
-            locint=(toInt(cell(r,O.기존지방))||0)+(toInt(cell(r,O.부인지방))||0);
-            if(amt>0)warnings.fallback++; }
-          intax=intax||0; locint=locint||0; }
+        var amt=toInt(cell(r,O.최종소득)),intax=toInt(cell(r,O.최종소득세)),locint=toInt(cell(r,O.최종지방));
+        if(amt===null){ amt=(toInt(cell(r,O.해당기존소득))||0)+(toInt(cell(r,O.부인소득))||0);
+          intax=(toInt(cell(r,O.해당기존소득세))||0)+(toInt(cell(r,O.부인소득세))||0);
+          locint=(toInt(cell(r,O.해당기존지방))||0)+(toInt(cell(r,O.부인지방))||0);
+          if(amt>0)warnings.fallback++; }
+        intax=intax||0; locint=locint||0;
         if(amt!==null&&amt>0){ var hM=!curHaing.code; if(hM)noteMissing((curHaing.name||'(이름없음)')+'(해당자)');
           out.push({kind:'해당',name:curHaing.name,missing:hM,cells:erpRow(curHaing.code,ym,amt,intax,locint)}); warnings.haing++; }
       }
@@ -381,8 +377,8 @@
 
     $('tiles').innerHTML=[
       ['생성 행수',rows.length,''],
-      ['부인자 (0원)',w.buin,''],
-      ['해당자',w.haing,''],
+      ['부인자 행',w.buin,''],
+      ['해당자 행',w.haing,''],
       ['코드 누락',w.missingCode.length,w.missingCode.length?'warn':'good']
     ].map(function(t){return '<div class="tile '+t[2]+'"><div class="v">'+t[1]+'</div><div class="l">'+t[0]+'</div></div>';}).join('');
 
@@ -452,7 +448,6 @@
       var matrix=window.ERPCore.parseClipboard(txt);
       var built=window.ERPCore.buildRows(matrix,{
         INCLUDE:$('include').value,
-        AMOUNT_BASIS:$('basis').value,
         CODE_PAD_LEN:$('pad').checked?6:0
       });
       render(built);
