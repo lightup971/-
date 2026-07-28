@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>생일휴가 자동화 도구</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.14.0/dist/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --color-bg: #ffffff;
+    --color-bg-secondary: #f7f7f5;
+    --color-bg-tertiary: #f0efea;
+    --color-text-primary: #1a1a18;
+    --color-text-secondary: #5f5e5a;
+    --color-text-tertiary: #888780;
+    --color-border: rgba(0,0,0,0.12);
+    --color-border-mid: rgba(0,0,0,0.2);
+    --color-accent: #1a1a18;
+    --color-success-bg: #eaf3de;
+    --color-success-text: #3b6d11;
+    --color-warning-bg: #faeeda;
+    --color-warning-text: #854f0b;
+    --color-danger-bg: #fcebeb;
+    --color-danger-text: #a32d2d;
+    --color-info-bg: #e6f1fb;
+    --color-info-text: #185fa5;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: #1c1c1a;
+      --color-bg-secondary: #252523;
+      --color-bg-tertiary: #2e2e2b;
+      --color-text-primary: #f0efe8;
+      --color-text-secondary: #b4b2a9;
+      --color-text-tertiary: #888780;
+      --color-border: rgba(255,255,255,0.1);
+      --color-border-mid: rgba(255,255,255,0.18);
+      --color-accent: #f0efe8;
+      --color-success-bg: #173404;
+      --color-success-text: #97c459;
+      --color-warning-bg: #412402;
+      --color-warning-text: #fac775;
+      --color-danger-bg: #501313;
+      --color-danger-text: #f09595;
+      --color-info-bg: #042c53;
+      --color-info-text: #85b7eb;
+    }
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .app-header {
+    background: var(--color-bg);
+    border-bottom: 0.5px solid var(--color-border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-header .logo { font-size: 16px; font-weight: 600; }
+  .app-header .subtitle { font-size: 13px; color: var(--color-text-secondary); }
+
+  .main { max-width: 780px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  .tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--color-bg-secondary);
+    border: 0.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 4px;
+    margin-bottom: 1.5rem;
+  }
+  .tab {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: var(--color-text-secondary);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: var(--font);
+    transition: background 0.15s, color 0.15s;
+  }
+  .tab:hover { background: var(--color-bg-tertiary); color: var(--color-text-primary); }
+  .tab.active { background: var(--color-bg); color: var(--color-text-primary); font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--color-bg);
+    border: 0.5px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .card-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .card-sub { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 1rem; }
+
+  .upload-zone {
+    border: 1.5px dashed var(--color-border-mid);
+    border-radius: var(--radius-md);
+    padding: 2.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .upload-zone:hover, .upload-zone.drag-over { background: var(--color-bg-secondary); border-color: var(--color-text-secondary); }
+  .upload-zone i { font-size: 32px; color: var(--color-text-tertiary); display: block; margin-bottom: 8px; }
+  .upload-zone p { font-size: 13px; color: var(--color-text-secondary); }
+
+  label { font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 5px; margin-top: 12px; }
+  label:first-child { margin-top: 0; }
+
+  input[type=text], input[type=password], select, textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 0.5px solid var(--color-border-mid);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-size: 13px;
+    font-family: var(--font);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--color-text-secondary); }
+
+  textarea { height: 220px; resize: vertical; line-height: 1.7; }
+
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    cursor: pointer;
+    border: 0.5px solid var(--color-border-mid);
+    background: transparent;
+    color: var(--color-text-primary);
+    font-family: var(--font);
+    transition: background 0.15s;
+  }
+  .btn:hover { background: var(--color-bg-secondary); }
+  .btn-primary { background: var(--color-text-primary); color: var(--color-bg); border-color: var(--color-text-primary); }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-row { display: flex; gap: 8px; margin-top: 1rem; flex-wrap: wrap; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 3px 8px; border-radius: 10px;
+  }
+  .badge-success { background: var(--color-success-bg); color: var(--color-success-text); }
+  .badge-warning { background: var(--color-warning-bg); color: var(--color-warning-text); }
+  .badge-danger { background: var(--color-danger-bg); color: var(--color-danger-text); }
+  .badge-info { background: var(--color-info-bg); color: var(--color-info-text); }
+
+  .alert {
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    font-size: 12px;
+    line-height: 1.6;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .alert-warning { background: var(--color-warning-bg); color: var(--color-warning-text); }
+  .alert-info { background: var(--color-info-bg); color: var(--color-info-text); }
+  .alert i { flex-shrink: 0; margin-top: 1px; }
+
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .preview-table th { text-align: left; padding: 8px 10px; font-weight: 500; font-size: 12px; color: var(--color-text-secondary); border-bottom: 0.5px solid var(--color-border); white-space: nowrap; }
+  .preview-table td { padding: 8px 10px; border-bottom: 0.5px solid var(--color-border); }
+  .preview-table tr:last-child td { border-bottom: none; }
+  .table-wrap { overflow-x: auto; }
+
+  .person-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 0.5px solid var(--color-border); }
+  .person-row:last-child { border-bottom: none; }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--color-info-bg); color: var(--color-info-text); font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .person-info { flex: 1; min-width: 0; }
+  .person-name { font-size: 14px; font-weight: 500; }
+  .person-meta { font-size: 12px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .person-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
+  .msg-preview-box {
+    background: var(--color-bg-secondary);
+    border: 0.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    font-size: 13px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    margin-top: 12px;
+  }
+
+  .progress-wrap { margin-top: 12px; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; }
+  .progress-bar { height: 4px; border-radius: 2px; background: var(--color-bg-secondary); overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; background: #1D9E75; transition: width 0.3s; }
+
+  .step-row { display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-start; }
+  .step-num { width: 26px; height: 26px; border-radius: 50%; background: var(--color-bg-secondary); border: 0.5px solid var(--color-border); font-size: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-title { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .step-desc { font-size: 13px; color: var(--color-text-secondary); line-height: 1.6; }
+
+  .empty-state { text-align: center; padding: 3rem 1rem; color: var(--color-text-tertiary); }
+  .empty-state i { font-size: 36px; display: block; margin-bottom: 8px; }
+  .empty-state p { font-size: 14px; }
+
+  code {
+    background: var(--color-bg-tertiary);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+  }
+
+  .divider { border: none; border-top: 0.5px solid var(--color-border); margin: 1rem 0; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <i class="ti ti-cake" style="font-size:20px; color:#D85A30;" aria-hidden="true"></i>
+  <span class="logo">생일휴가 자동화</span>
+  <span class="subtitle">엑셀 처리 + 직접 입력 + 슬랙 DM</span>
+</header>
+
+<main class="main">
+  <div class="tabs">
+    <button class="tab active" id="tabbtn-excel" onclick="switchTab('excel', this)">
+      <i class="ti ti-table" aria-hidden="true"></i> 엑셀 처리
+    </button>
+    <button class="tab" id="tabbtn-manual" onclick="switchTab('manual', this)">
+      <i class="ti ti-keyboard" aria-hidden="true"></i> 직접 입력
+    </button>
+    <button class="tab" id="tabbtn-slack" onclick="switchTab('slack', this)">
+      <i class="ti ti-message-2" aria-hidden="true"></i> 슬랙 DM 발송
+    </button>
+    <button class="tab" id="tabbtn-guide" onclick="switchTab('guide', this)">
+      <i class="ti ti-book-2" aria-hidden="true"></i> 사용 가이드
+    </button>
+  </div>
+
+  <!-- ===== EXCEL TAB ===== -->
+  <div class="section active" id="tab-excel">
+    <div class="card">
+      <div class="card-title">ERP 엑셀 파일 업로드</div>
+      <div class="card-sub">ERP에서 export한 임직원 생일 데이터를 업로드하세요.</div>
+      <div class="upload-zone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+        <i class="ti ti-cloud-upload" aria-hidden="true"></i>
+        <p>클릭하거나 파일을 여기에 드래그하세요</p>
+        <p style="font-size:12px; margin-top:4px; color: var(--color-text-tertiary);">.xlsx / .csv 파일 지원</p>
+        <input type="file" id="fileInput" accept=".xlsx,.csv" style="display:none" onchange="handleFile(this.files[0])">
+      </div>
+      <div id="fileStatus" style="display:none; margin-top:10px;"></div>
+    </div>
+
+    <div class="card" id="colMapCard" style="display:none;">
+      <div class="card-title">컬럼 매핑</div>
+      <div class="card-sub">엑셀의 컬럼명과 실제 데이터를 연결해주세요. 자동으로 감지해드립니다.</div>
+      <div class="field-grid">
+        <div>
+          <label>이름 컬럼 *</label>
+          <select id="colName"></select>
+        </div>
+        <div>
+          <label>생년월일 컬럼 *</label>
+          <select id="colBirth"></select>
+        </div>
+        <div>
+          <label>부서 컬럼 (선택)</label>
+          <select id="colDept"></select>
+        </div>
+        <div>
+          <label>슬랙 ID / 이메일 컬럼 (선택)</label>
+          <select id="colSlack"></select>
+        </div>
+        <div>
+          <label>직급 컬럼 (선택)</label>
+          <select id="colRank"></select>
+        </div>
+        <div>
+          <label>재직여부 컬럼 (선택)</label>
+          <select id="colStatus"></select>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <label>생일휴가 부여 대상 월</label>
+        <select id="targetMonth" style="width:auto;"></select>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="processData()">
+          <i class="ti ti-adjustments" aria-hidden="true"></i> 데이터 처리
+        </button>
+      </div>
+    </div>
+
+    <div class="card" id="previewCard" style="display:none;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:12px; gap:12px; flex-wrap:wrap;">
+        <div>
+          <div class="card-title">처리 결과 미리보기</div>
+          <div id="previewSub" style="font-size:13px; color:var(--color-text-secondary);"></div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn" onclick="downloadExcel()">
+            <i class="ti ti-file-download" aria-hidden="true"></i> ERP 업로드용 엑셀
+          </button>
+          <button class="btn" onclick="downloadSlackCsv()">
+            <i class="ti ti-download" aria-hidden="true"></i> 슬랙 발송용 Excel
+          </button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="preview-table" id="previewTable"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MANUAL TAB ===== -->
+  <div class="section" id="tab-manual">
+    <div class="card">
+      <div class="card-title">생일자 직접 입력</div>
+      <div class="card-sub">엑셀 없이 생일자 이름을 직접 입력해 DM 문구를 생성합니다. 한 줄에 한 명씩 입력하세요. 슬랙 발송까지 하려면 <code>이름, 슬랙ID</code> 또는 <code>이름, 이메일</code> 형식으로 입력하세요.</div>
+      <label>생일자 명단</label>
+      <textarea id="manualNames" placeholder="홍길동&#10;김철수, U01ABCDEF&#10;이영희, lee@vroong.com"></textarea>
+      <div class="field-grid" style="margin-top:12px;">
+        <div>
+          <label>생일 당월</label>
+          <select id="manualMonth" style="width:100%;"></select>
+        </div>
+        <div></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="generateManual()">
+          <i class="ti ti-wand" aria-hidden="true"></i> 문구 생성
+        </button>
+        <button class="btn" onclick="clearManual()">
+          <i class="ti ti-eraser" aria-hidden="true"></i> 초기화
+        </button>
+      </div>
+      <p style="font-size:12px; color:var(--color-text-secondary); margin-top:10px; line-height:1.6;">
+        문구는 <strong>슬랙 DM 발송</strong> 탭의 메시지 템플릿을 그대로 사용합니다. 템플릿을 바꾸면 여기에도 반영됩니다.
+      </p>
+    </div>
+
+    <div class="card" id="manualResultCard" style="display:none;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:12px; flex-wrap:wrap;">
+        <div>
+          <div class="card-title" style="margin-bottom:0;">생성된 DM 문구</div>
+          <div class="card-sub" id="manualResultSub" style="margin-bottom:0;"></div>
+        </div>
+        <button class="btn" onclick="pushManualToSlack()">
+          <i class="ti ti-arrow-right" aria-hidden="true"></i> 슬랙 발송 목록에 추가
+        </button>
+      </div>
+      <div id="manualResults"></div>
+    </div>
+  </div>
+
+  <!-- ===== SLACK TAB ===== -->
+  <div class="section" id="tab-slack">
+    <div class="card">
+      <div class="card-title">슬랙 API 설정</div>
+      <div class="card-sub">슬랙 앱의 Bot User OAuth Token을 입력하세요.</div>
+      <div class="alert alert-warning">
+        <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+        <span>보안 주의: 토큰은 이 도구에 저장되지 않으며 세션 중에만 사용됩니다. 공용 PC에서는 사용 후 페이지를 닫아주세요.</span>
+      </div>
+      <label>Bot User OAuth Token (xoxb-...)</label>
+      <input type="password" id="slackToken" placeholder="xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx">
+      <p style="font-size:12px; color:var(--color-text-secondary); margin-top:6px; line-height:1.6;">
+        api.slack.com/apps → OAuth &amp; Permissions → Bot Token Scopes에 <code>chat:write</code>, <code>users:read</code>, <code>users:read.email</code> 권한 필요
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">메시지 템플릿</div>
+      <div class="card-sub"><code>{이름}</code>은 실제 이름으로, <code>{월}</code>은 생일 당월로, <code>{말일}</code>은 해당 월 말일로 자동 치환됩니다.</div>
+      <textarea id="msgTemplate">안녕하세요, {이름}님.
+{월}월 생일을 축하드립니다!🎉
+부릉에서는 생일 당월, 더 행복한 한 달 보내실 수 있도록 생일휴가 1일을 드리고 있습니다.
+
+📅 생일휴가 1일 부여
+* 신청 및 사용 기한: 생일 당월인 {월}월 말일까지
+* 말일 이후 자동소멸되며, 당월 내에서만 사용 가능
+
+📌 신청 방법
+* 옴니이솔 → 인사관리 → My HR(ESS) → 근태신청(NEW) → [휴가신청서]
+→ 휴가종류 선택: `기타휴가` > `생일휴가` 선택
+
+📢 결재 라인
+* `1차 조직장(결재)` - `피플실(합의)`
+* 주의사항: 반드시 '피플실(합의)' 지정
+
+즐겁고 행복한 한 달 되세요! 🎉</textarea>
+      <div class="btn-row">
+        <button class="btn" onclick="previewMsg()">
+          <i class="ti ti-eye" aria-hidden="true"></i> 미리보기
+        </button>
+      </div>
+      <div id="msgPreviewArea" style="display:none;">
+        <p style="font-size:12px; color:var(--color-text-secondary); margin-top:12px; margin-bottom:4px;">미리보기 (홍길동 예시)</p>
+        <div class="msg-preview-box" id="msgPreviewText"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <div>
+          <div class="card-title">발송 대상자 목록</div>
+          <div style="font-size:13px; color:var(--color-text-secondary);" id="personListSub">엑셀 처리 또는 직접 입력 탭에서 대상자를 먼저 추가해주세요.</div>
+        </div>
+        <button class="btn btn-primary" onclick="sendAll()" id="sendAllBtn" style="display:none;">
+          <i class="ti ti-send" aria-hidden="true"></i> 전체 발송
+        </button>
+      </div>
+      <div id="personList"></div>
+      <div id="progressSection" style="display:none;" class="progress-wrap">
+        <div class="progress-label">
+          <span>발송 진행중...</span>
+          <span id="progressText">0 / 0</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== GUIDE TAB ===== -->
+  <div class="section" id="tab-guide">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:1rem; font-size:15px;">전체 프로세스</div>
+      <div class="step-row">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-title">대상자 준비 — 엑셀 업로드 또는 직접 입력</div>
+          <div class="step-desc">ERP 엑셀을 업로드하거나, 명단이 적으면 <strong>직접 입력</strong> 탭에서 이름만 붙여넣어 바로 문구를 만들 수 있습니다.</div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-title">문구 확인 및 복사</div>
+          <div class="step-desc">생성된 문구를 확인하고 복사하거나, ERP 업로드용 엑셀을 내려받습니다.</div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-title">슬랙 DM 발송</div>
+          <div class="step-desc">슬랙 탭에서 Bot Token 입력 후 개별 또는 전체 일괄 발송하거나, 아래 <strong>API 없이 자동화하는 방법</strong>을 사용합니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:1rem; font-size:15px;">슬랙 API 연동 없이 자동화하는 방법</div>
+      <div class="step-row">
+        <div class="step-num"><i class="ti ti-copy" style="font-size:14px;" aria-hidden="true"></i></div>
+        <div>
+          <div class="step-title">① 복사 → 붙여넣기 + 슬랙 예약 발송 <span class="badge badge-success">승인 불필요</span></div>
+          <div class="step-desc">직접 입력 탭에서 문구 생성 → 복사 → 슬랙 DM 창에 붙여넣고, 전송 버튼 옆 <strong>예약 발송</strong>으로 시간을 지정합니다. 별도 권한이 필요 없어 가장 안전합니다.</div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num"><i class="ti ti-robot" style="font-size:14px;" aria-hidden="true"></i></div>
+        <div>
+          <div class="step-title">② Claude + 슬랙 커넥터 <span class="badge badge-info">코딩 불필요</span></div>
+          <div class="step-desc">claude.ai 또는 Claude 데스크톱에서 Slack을 커넥터로 연결(관리자 OAuth 승인)한 뒤, “이 명단에 이 문구를 DM 보내줘”라고 지시하면 Claude가 발송합니다. 직접 API 서버를 만들 필요가 없습니다.</div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num"><i class="ti ti-plug" style="font-size:14px;" aria-hidden="true"></i></div>
+        <div>
+          <div class="step-title">③ Claude MCP + 슬랙 MCP 서버</div>
+          <div class="step-desc">Claude 데스크톱/코드에 오픈소스 Slack MCP 서버를 등록하고 개인 슬랙 토큰 하나만 발급하면, Claude가 DM 발송을 대신합니다. 서버를 직접 개발/운영할 필요가 없습니다.</div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num"><i class="ti ti-bolt" style="font-size:14px;" aria-hidden="true"></i></div>
+        <div>
+          <div class="step-title">④ 노코드 자동화(Zapier/Make) + Claude</div>
+          <div class="step-desc">Claude로 문구를 생성하고 Zapier의 Slack “Send Direct Message” 액션으로 발송합니다. Zapier가 슬랙 인증을 대신 처리합니다.</div>
+        </div>
+      </div>
+      <div class="alert alert-info" style="margin-top:12px; margin-bottom:0;">
+        <i class="ti ti-info-circle" aria-hidden="true"></i>
+        <span>어떤 방식이든 실제 DM 전송은 결국 슬랙의 OAuth 인증을 거칩니다. 다만 ①~④는 <strong>사내 IT가 별도 API 서버를 구축할 필요가 없는</strong> 방법들입니다.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:1rem; font-size:15px;">슬랙 Bot Token 발급 방법</div>
+      <div class="step-row">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-title">앱 생성</div>
+          <div class="step-desc"><a href="https://api.slack.com/apps" target="_blank" style="color:var(--color-info-text);">api.slack.com/apps</a> → Create New App → From scratch → 앱 이름 입력 → 워크스페이스 선택</div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-title">권한 설정</div>
+          <div class="step-desc">OAuth &amp; Permissions → Bot Token Scopes 에서 <code>chat:write</code>, <code>users:read.email</code> 추가</div>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-title">설치 및 토큰 복사</div>
+          <div class="step-desc">Install to Workspace → Bot User OAuth Token (xoxb-...) 복사 후 슬랙 탭에 붙여넣기</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">엑셀 파일 예시 형식</div>
+      <div class="table-wrap">
+        <table class="preview-table">
+          <thead><tr><th>이름</th><th>생년월일</th><th>부서</th><th>슬랙 ID</th></tr></thead>
+          <tbody>
+            <tr><td>홍길동</td><td>1992-05-14</td><td>개발팀</td><td>U01ABCDEF</td></tr>
+            <tr><td>김철수</td><td>1990-05-28</td><td>마케팅팀</td><td>hong@burrng.com</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:12px; color:var(--color-text-secondary); margin-top:8px;">슬랙 ID는 멤버 프로필 → 케밥 메뉴 → 슬랙 ID 복사에서 확인. 이메일로도 자동 조회됩니다.</p>
+    </div>
+
+    <div class="card">
+      <div class="alert alert-info" style="margin-bottom:0;">
+        <i class="ti ti-info-circle" aria-hidden="true"></i>
+        <span>슬랙 API는 브라우저 CORS 정책으로 인해 직접 호출이 차단될 수 있습니다. 그 경우 <strong>슬랙 발송용 Excel</strong>을 다운받아 슬랙 앱에서 직접 메시지를 복사·붙여넣기 하거나, 사내 서버/프록시를 통해 API를 호출하는 방식을 사용하세요.</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+let parsedData = [];
+let processedData = [];
+let manualData = [];
+let columns = [];
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  el.classList.add('active');
+}
+
+const dropzone = document.getElementById('dropzone');
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => { e.preventDefault(); dropzone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    parsedData = data;
+    columns = Object.keys(data[0] || {});
+    showFileStatus(file.name, data.length);
+    setupColMap();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showFileStatus(name, count) {
+  const el = document.getElementById('fileStatus');
+  el.style.display = 'block';
+  el.innerHTML = `<span class="badge badge-success"><i class="ti ti-check"></i> ${name} — ${count}명 로드됨</span>`;
+  document.getElementById('colMapCard').style.display = 'block';
+}
+
+function setupColMap() {
+  const selects = ['colName', 'colBirth', 'colDept', 'colSlack', 'colRank', 'colStatus'];
+  selects.forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">— 선택 안 함 —</option>' + columns.map(c => `<option value="${c}">${c}</option>`).join('');
+  });
+  const autoMap = {
+    colName: ['이름','name','성명','직원명','사원명'],
+    colBirth: ['생년월일','birth','birthday','생일','dob','출생'],
+    colDept: ['부서','department','팀','team'],
+    colSlack: ['슬랙','slack','slack_id','이메일','email','mail'],
+    colRank:  ['직급','rank','직위','grade','level'],
+    colStatus: ['재직여부','재직','status','재직상태','고용상태']
+  };
+  Object.entries(autoMap).forEach(([id, candidates]) => {
+    const sel = document.getElementById(id);
+    for (const c of candidates) {
+      const match = columns.find(col => col.toLowerCase().includes(c.toLowerCase()));
+      if (match) { sel.value = match; break; }
+    }
+  });
+  const months = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const mSel = document.getElementById('targetMonth');
+  const now = new Date();
+  mSel.innerHTML = months.map((m, i) => `<option value="${i+1}" ${i+1 === now.getMonth()+1 ? 'selected' : ''}>${m}</option>`).join('');
+}
+
+function getLastDay(year, month) { return new Date(year, month, 0).getDate(); }
+function pad(n) { return String(n).padStart(2,'0'); }
+function formatDate(y, m, d) { return `${y}-${pad(m)}-${pad(d)}`; }
+
+function parseBirth(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  const m1 = s.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+  if (m1) return { year: parseInt(m1[1]), month: parseInt(m1[2]), day: parseInt(m1[3]) };
+  const m2 = s.match(/^(\d{8})$/);
+  if (m2) return { year: parseInt(s.slice(0,4)), month: parseInt(s.slice(4,6)), day: parseInt(s.slice(6,8)) };
+  if (typeof val === 'number' && val > 10000) {
+    const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+    return { year: d.getFullYear(), month: d.getMonth()+1, day: d.getDate() };
+  }
+  return null;
+}
+
+const EXEC_RANKS = new Set(['CEO','CTO','대표이사','부사장','전무','상무','이사','LV.8']);
+
+function getExcludeReason(row, rankCol, deptCol, statusCol) {
+  // 재직여부 체크
+  if (statusCol) {
+    const st = String(row[statusCol] || '').trim();
+    if (st && st !== '재직') return '재직 아님';
+  }
+  // 임원 체크
+  if (rankCol) {
+    const rank = String(row[rankCol] || '').trim();
+    if (EXEC_RANKS.has(rank)) return '생일휴가 제외';
+  }
+  // 장애인고용 부서 체크
+  if (deptCol) {
+    const dept = String(row[deptCol] || '').trim();
+    if (dept === '장애인고용') return '생일휴가 제외';
+  }
+  return null;
+}
+
+function processData() {
+  const nameCol   = document.getElementById('colName').value;
+  const birthCol  = document.getElementById('colBirth').value;
+  const deptCol   = document.getElementById('colDept').value;
+  const slackCol  = document.getElementById('colSlack').value;
+  const rankCol   = document.getElementById('colRank').value;
+  const statusCol = document.getElementById('colStatus').value;
+  const targetMonth = parseInt(document.getElementById('targetMonth').value);
+
+  if (!nameCol || !birthCol) { alert('이름과 생년월일 컬럼을 선택해주세요.'); return; }
+
+  const year = new Date().getFullYear();
+  const lastDay = getLastDay(year, targetMonth);
+
+  const all = parsedData.map(row => {
+    const birth = parseBirth(row[birthCol]);
+    if (!birth || birth.month !== targetMonth) return null;
+    const fullName = String(row[nameCol] || '').trim();
+    const firstName = fullName.length > 1 ? fullName.slice(1) : fullName;
+    const excludeReason = getExcludeReason(row, rankCol, deptCol, statusCol);
+    return {
+      이름: firstName,    // 메시지용 (이름만)
+      성명: fullName,     // 미리보기/엑셀용 (성+이름)
+      부서: deptCol ? String(row[deptCol] || '').trim() : '',
+      직급: rankCol ? String(row[rankCol] || '').trim() : '',
+      생년월일: `${birth.year}-${pad(birth.month)}-${pad(birth.day)}`,
+      생일: `${birth.month}/${birth.day}`,
+      휴가시작일: formatDate(year, targetMonth, 1),
+      휴가종료일: formatDate(year, targetMonth, lastDay),
+      부여일수: 1,
+      슬랙ID: slackCol ? String(row[slackCol] || '').trim() : '',
+      말일: `${targetMonth}월 ${lastDay}일`,
+      월: targetMonth,
+      _raw: row,
+      _excluded: excludeReason,  // null이면 정상 대상자
+      _status: 'pending'
+    };
+  }).filter(Boolean);
+
+  // 정상 대상자 먼저, 제외 대상자는 맨 아래
+  processedData = [
+    ...all.filter(p => !p._excluded),
+    ...all.filter(p => p._excluded)
+  ];
+
+  renderPreview(targetMonth, lastDay);
+  renderPersonList();
+  const eligible = processedData.filter(p => !p._excluded).length;
+  if (processedData.length) {
+    document.getElementById('sendAllBtn').style.display = '';
+    document.getElementById('personListSub').textContent =
+      `총 ${processedData.length}명 (휴가 부여 ${eligible}명 · 제외 ${processedData.length - eligible}명)`;
+  }
+}
+
+function renderPreview(month, lastDay) {
+  document.getElementById('previewCard').style.display = 'block';
+  const eligible = processedData.filter(p => !p._excluded).length;
+  document.getElementById('previewSub').textContent =
+    `${month}월 생일자 ${processedData.length}명 — 휴가 부여 ${eligible}명 · 제외 ${processedData.length - eligible}명`;
+  const headers = ['성명','직급','부서','생일','휴가시작일','휴가종료일','부여일수','슬랙ID','비고'];
+  document.getElementById('previewTable').innerHTML =
+    `<thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>` +
+    processedData.map(r => {
+      const isExcluded = !!r._excluded;
+      const rowStyle = isExcluded ? 'color:var(--color-text-tertiary);' : '';
+      const bigoCell = r._excluded
+        ? `<td><span class="badge badge-danger" style="font-size:11px;">${r._excluded}</span></td>`
+        : '<td></td>';
+      return `<tr style="${rowStyle}">${
+        ['성명','직급','부서','생일','휴가시작일','휴가종료일','부여일수','슬랙ID'].map(h =>
+          `<td>${isExcluded && ['휴가시작일','휴가종료일','부여일수'].includes(h) ? '' : (r[h]||'')}</td>`
+        ).join('')
+      }${bigoCell}</tr>`;
+    }).join('') +
+    `</tbody>`;
+}
+
+function renderPersonList() {
+  const container = document.getElementById('personList');
+  if (!processedData.length) {
+    container.innerHTML = '<div class="empty-state"><i class="ti ti-users"></i><p>엑셀 처리 또는 직접 입력 탭에서 대상자를 먼저 추가해주세요.</p></div>';
+    return;
+  }
+  container.innerHTML = processedData.map((p, i) => {
+    const initials = p.성명.slice(0,1) + (p.성명.length > 1 ? p.성명.slice(-1) : '');
+    const isExcluded = !!p._excluded;
+    const avatarStyle = isExcluded ? 'background:var(--color-bg-tertiary);color:var(--color-text-tertiary);' : '';
+    const metaParts = [p.직급, p.부서, p.생일 ? '생일 '+p.생일 : '', p.슬랙ID||'슬랙 ID 없음'].filter(Boolean);
+    // 비고 배지: 제외 사유 표시
+    const bigoBadge = isExcluded
+      ? `<span class="badge badge-danger">${p._excluded}</span>`
+      : '';
+    const dmBtn = isExcluded
+      ? `<button class="btn" style="font-size:12px;padding:5px 12px;opacity:0.35;cursor:not-allowed;" disabled>DM 발송</button>`
+      : `<button class="btn" style="font-size:12px;padding:5px 12px;" onclick="sendOne(${i})">DM 발송</button>`;
+    const copyBtn = isExcluded ? '' :
+      `<button class="btn" style="font-size:12px;padding:5px 10px;" onclick="copyMsg(${i})" id="copybtn-${i}" title="메시지 복사">복사</button>`;
+    return `<div class="person-row" id="prow-${i}" style="${isExcluded ? 'opacity:0.6;' : ''}">
+      <div class="avatar" style="${avatarStyle}">${initials}</div>
+      <div class="person-info">
+        <div class="person-name">${p.성명}${bigoBadge ? ' '+bigoBadge : ''}</div>
+        <div class="person-meta">${metaParts.join(' · ')}</div>
+      </div>
+      <div class="person-actions">
+        <span id="pstatus-${i}">${isExcluded ? '' : '<span class="badge badge-warning">대기중</span>'}</span>
+        ${copyBtn}
+        ${dmBtn}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 공용 복사 함수 (file:// 환경 포함 모든 환경에서 동작)
+function copyText(text, btnId) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  let success = false;
+  try { success = document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+  const btn = btnId ? document.getElementById(btnId) : null;
+  if (success) {
+    if (btn) {
+      const prev = btn.innerHTML;
+      btn.innerHTML = '✓ 복사됨';
+      btn.style.color = 'var(--color-success-text)';
+      setTimeout(() => { btn.innerHTML = prev; btn.style.color = ''; }, 1800);
+    }
+  } else {
+    prompt('아래 메시지를 복사하세요 (Ctrl+A → Ctrl+C):', text);
+  }
+}
+
+function copyMsg(i) {
+  copyText(buildMessage(processedData[i]), 'copybtn-' + i);
+}
+
+function buildMessage(person) {
+  return document.getElementById('msgTemplate').value
+    .replace(/{이름}/g, person.이름)
+    .replace(/{월}/g, person.월)
+    .replace(/{말일}/g, person.말일);
+}
+
+// ===== 직접 입력 탭 =====
+function setupManualMonth() {
+  const months = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const mSel = document.getElementById('manualMonth');
+  const now = new Date();
+  mSel.innerHTML = months.map((m, i) => `<option value="${i+1}" ${i+1 === now.getMonth()+1 ? 'selected' : ''}>${m}</option>`).join('');
+}
+
+function generateManual() {
+  const raw = document.getElementById('manualNames').value.trim();
+  if (!raw) { alert('생일자 이름을 한 명 이상 입력해주세요.'); return; }
+  const month = parseInt(document.getElementById('manualMonth').value);
+  const year = new Date().getFullYear();
+  const lastDay = getLastDay(year, month);
+
+  manualData = raw.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+    const parts = line.split(/[,\t]/).map(s => s.trim());
+    const name = parts[0];
+    const slackId = parts[1] || '';
+    return {
+      이름: name,
+      성명: name,
+      부서: '',
+      직급: '',
+      생일: '',
+      휴가시작일: formatDate(year, month, 1),
+      휴가종료일: formatDate(year, month, lastDay),
+      부여일수: 1,
+      슬랙ID: slackId,
+      말일: `${month}월 ${lastDay}일`,
+      월: month,
+      _excluded: null,
+      _status: 'pending'
+    };
+  });
+
+  renderManualResults();
+}
+
+function renderManualResults() {
+  const card = document.getElementById('manualResultCard');
+  const container = document.getElementById('manualResults');
+  if (!manualData.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  document.getElementById('manualResultSub').textContent = `${manualData.length}명 · ${manualData[0].월}월 생일자`;
+  container.innerHTML = manualData.map((p, i) => {
+    const msg = buildMessage(p);
+    const slackBadge = p.슬랙ID
+      ? `<span class="badge badge-info">${p.슬랙ID}</span>`
+      : `<span class="badge badge-warning">슬랙ID 없음</span>`;
+    return `<div style="margin-bottom:18px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px;">
+        <div style="font-weight:500; font-size:14px;">${p.성명} ${slackBadge}</div>
+        <button class="btn" style="font-size:12px;padding:5px 12px;" onclick="copyManual(${i})" id="mcopy-${i}">
+          <i class="ti ti-copy" aria-hidden="true"></i> 복사
+        </button>
+      </div>
+      <div class="msg-preview-box" style="margin-top:0;">${msg}</div>
+    </div>`;
+  }).join('');
+}
+
+function copyManual(i) {
+  copyText(buildMessage(manualData[i]), 'mcopy-' + i);
+}
+
+function clearManual() {
+  document.getElementById('manualNames').value = '';
+  manualData = [];
+  document.getElementById('manualResultCard').style.display = 'none';
+}
+
+function pushManualToSlack() {
+  if (!manualData.length) { alert('먼저 문구를 생성해주세요.'); return; }
+  // 직접 입력한 대상자를 슬랙 발송 목록에 병합
+  processedData = processedData.concat(manualData.map(p => ({ ...p })));
+  renderPersonList();
+  const eligible = processedData.filter(p => !p._excluded).length;
+  document.getElementById('sendAllBtn').style.display = '';
+  document.getElementById('personListSub').textContent =
+    `총 ${processedData.length}명 (휴가 부여 ${eligible}명 · 제외 ${processedData.length - eligible}명)`;
+  // 슬랙 탭으로 전환
+  document.getElementById('tabbtn-slack').click();
+}
+
+async function sendSlack(id, message) {
+  const token = document.getElementById('slackToken').value.trim();
+  if (!token) throw new Error('Bot Token을 입력해주세요.');
+  const PROXY_URL = 'https://script.google.com/a/macros/vroong.com/s/AKfycbzmXkX_Zuh5Kk0ljyqzMVu2choEY3ffJsHFK6loBoUAjcyN3nikVozlPwmgK0ov4xFv/exec';
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ token, channel: id, text: message })
+  });
+  const d = await res.json();
+  if (!d.ok) throw new Error(d.error);
+}
+
+async function sendOne(i) {
+  const p = processedData[i];
+  const statusEl = document.getElementById('pstatus-' + i);
+  statusEl.innerHTML = '<span class="badge badge-info">발송중...</span>';
+  try {
+    if (!p.슬랙ID) throw new Error('슬랙 ID / 이메일 없음');
+    await sendSlack(p.슬랙ID, buildMessage(p));
+    processedData[i]._status = 'done';
+    statusEl.innerHTML = '<span class="badge badge-success"><i class="ti ti-check"></i> 완료</span>';
+  } catch(e) {
+    processedData[i]._status = 'fail';
+    statusEl.innerHTML = `<span class="badge badge-danger" title="${e.message}">실패</span>`;
+  }
+}
+
+async function sendAll() {
+  const targets = processedData.map((p,i) => ({p,i})).filter(({p}) => !p._excluded);
+  const total = targets.length;
+  document.getElementById('progressSection').style.display = 'block';
+  for (let t = 0; t < targets.length; t++) {
+    const {i} = targets[t];
+    document.getElementById('progressText').textContent = `${t+1} / ${total}`;
+    document.getElementById('progressFill').style.width = Math.round((t+1)/total*100) + '%';
+    await sendOne(i);
+    await new Promise(r => setTimeout(r, 600));
+  }
+}
+
+function previewMsg() {
+  const dummy = { 이름: '길동', 말일: '6월 30일', 월: new Date().getMonth()+1 };
+  document.getElementById('msgPreviewText').textContent = buildMessage(dummy);
+  document.getElementById('msgPreviewArea').style.display = 'block';
+}
+
+function excelDateSerial(dateStr) {
+  // "YYYY-MM-DD" 또는 엑셀 시리얼 숫자를 엑셀 날짜 시리얼로 변환
+  if (!dateStr) return '';
+  if (typeof dateStr === 'number') return dateStr;
+  const m = String(dateStr).match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+  if (!m) return dateStr;
+  // UTC 기준으로 생성해 타임존 오프셋으로 인한 날짜 밀림 방지
+  const utc = Date.UTC(parseInt(m[1]), parseInt(m[2])-1, parseInt(m[3]));
+  const base = Date.UTC(1899, 11, 30);
+  return Math.floor((utc - base) / 86400000);
+}
+
+function downloadExcel() {
+  if (!processedData.length) { alert('먼저 엑셀 처리를 해주세요.'); return; }
+
+  const erpCols = ['no', '사원번호', '성명', '입사일', '그룹입사일', '사원구분', '발생기준일', '부여일수', '조정일수', '사용일수', '잔여일수', '시작일', '종료일'];
+  const greenCols = new Set(['부여일수', '조정일수', '사용일수', '잔여일수', '시작일', '종료일']);
+  const dateCols  = new Set(['입사일', '그룹입사일', '시작일', '종료일']);
+
+  const eligibleData = processedData.filter(p => !p._excluded);
+  const rows = eligibleData.map((p, idx) => {
+    const raw = p._raw || {};
+    const get = key => raw[key] !== undefined ? raw[key] : '';
+    return {
+      'no':        idx + 1,
+      '사원번호':   get('사원번호'),
+      '성명':      get('성명'),
+      '입사일':    excelDateSerial(get('입사일')),
+      '그룹입사일': excelDateSerial(get('그룹입사일')),
+      '사원구분':   get('사원구분'),
+      '발생기준일': get('발생기준일'),
+      '부여일수':   1,
+      '조정일수':   get('조정일수'),
+      '사용일수':   '',
+      '잔여일수':   '',
+      '시작일':    excelDateSerial(p.휴가시작일),
+      '종료일':    excelDateSerial(p.휴가종료일),
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows, { header: erpCols });
+
+  // 열 인덱스 맵
+  const colIdx = {};
+  erpCols.forEach((c, i) => { colIdx[c] = i; });
+  const totalRows = eligibleData.length + 1; // 헤더 포함
+
+  // 날짜 포맷 (간단한 날짜: YYYY-MM-DD)
+  const dateNumFmt = 'YYYY-MM-DD';
+
+  // 헤더 스타일 + 데이터 셀 스타일 적용
+  erpCols.forEach((col, ci) => {
+    const cellAddr = XLSX.utils.encode_cell({ r: 0, c: ci });
+    if (!ws[cellAddr]) ws[cellAddr] = { v: col, t: 's' };
+    ws[cellAddr].s = {
+      fill: { fgColor: { rgb: greenCols.has(col) ? 'C6EFCE' : 'D9D9D9' } },
+      font: { bold: true },
+      alignment: { horizontal: 'center' }
+    };
+
+    // 데이터 행에 날짜 포맷 적용
+    if (dateCols.has(col)) {
+      for (let r = 1; r < totalRows; r++) {
+        const dc = XLSX.utils.encode_cell({ r, c: ci });
+        if (ws[dc] && ws[dc].v !== '') {
+          ws[dc].t = 'n';
+          ws[dc].s = { numFmt: dateNumFmt };
+          ws[dc].z = dateNumFmt;
+        }
+      }
+    }
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '생일휴가');
+  XLSX.writeFile(wb, `생일휴가_ERP업로드_${new Date().toISOString().slice(0,10)}.xlsx`, { cellStyles: true });
+}
+
+function downloadSlackCsv() {
+  if (!processedData.length) { alert('먼저 엑셀 처리를 해주세요.'); return; }
+  const rows = processedData.map(p => ({
+    이름: p.이름, 슬랙ID: p.슬랙ID, 말일: p.말일, 메시지: buildMessage(p)
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '슬랙발송');
+  XLSX.writeFile(wb, `생일휴가_슬랙발송_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+setupManualMonth();
+renderPersonList();
+</script>
+</body>
+</html>
