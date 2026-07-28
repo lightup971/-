@@ -1,0 +1,354 @@
+
+<h2 class="sr-only">생일휴가 현황 대시보드 - 월별 생일자 조회 및 미사용자 슬랙 DM 문구 생성</h2>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); }
+.wrap { padding: 1rem 0; }
+.top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 12px; }
+.top-bar h1 { font-size: 18px; font-weight: 500; color: var(--color-text-primary); }
+.month-selector { display: flex; align-items: center; gap: 8px; }
+.month-selector label { font-size: 13px; color: var(--color-text-secondary); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
+.stat-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 14px 16px; }
+.stat-card .label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; }
+.stat-card .value { font-size: 24px; font-weight: 500; color: var(--color-text-primary); }
+.stat-card .value.warn { color: var(--color-text-warning); }
+.stat-card .value.done { color: var(--color-text-success); }
+.section-title { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+.table-wrap { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; margin-bottom: 1.5rem; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+thead th { background: var(--color-background-secondary); padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 500; color: var(--color-text-secondary); border-bottom: 0.5px solid var(--color-border-tertiary); }
+tbody td { padding: 10px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--color-background-secondary); }
+.badge { display: inline-block; font-size: 11px; padding: 3px 8px; border-radius: 99px; font-weight: 500; }
+.badge-unused { background: var(--color-background-warning); color: var(--color-text-warning); }
+.badge-used { background: var(--color-background-success); color: var(--color-text-success); }
+.dm-box { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); border: 0.5px solid var(--color-border-tertiary); padding: 1.25rem; margin-bottom: 1.5rem; }
+.dm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.dm-header span { font-size: 13px; color: var(--color-text-secondary); }
+.dm-msg { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 14px; font-size: 14px; color: var(--color-text-primary); line-height: 1.7; white-space: pre-wrap; margin-bottom: 10px; }
+.copy-btn { font-size: 13px; padding: 6px 14px; }
+.empty-state { text-align: center; padding: 2.5rem; color: var(--color-text-secondary); font-size: 14px; }
+.filter-tabs { display: flex; gap: 6px; margin-bottom: 1rem; }
+.tab { font-size: 12px; padding: 5px 12px; border-radius: 99px; border: 0.5px solid var(--color-border-secondary); cursor: pointer; color: var(--color-text-secondary); background: transparent; }
+.tab.active { background: var(--color-text-primary); color: var(--color-background-primary); border-color: var(--color-text-primary); }
+</style>
+
+<div class="wrap">
+  <div class="top-bar">
+    <h1><i class="ti ti-gift" aria-hidden="true" style="font-size:18px; margin-right:6px; vertical-align:-2px;"></i>생일휴가 현황</h1>
+    <div class="month-selector">
+      <label for="monthSel">조회 월</label>
+      <select id="monthSel"></select>
+    </div>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="filter-tabs">
+    <button class="tab active" onclick="setFilter('all', this)">전체</button>
+    <button class="tab" onclick="setFilter('unused', this)">미사용</button>
+    <button class="tab" onclick="setFilter('used', this)">사용완료</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:14%">사원번호</th>
+          <th style="width:14%">성명</th>
+          <th style="width:18%">시작일</th>
+          <th style="width:18%">종료일</th>
+          <th style="width:12%">사용일수</th>
+          <th style="width:12%">잔여일수</th>
+          <th style="width:12%">상태</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div id="dmSection"></div>
+</div>
+
+<script>
+const RAW = [
+  {no:"M200001001",name:"휴가(캘린더연동)",start:46327,end:46356,used:null,remain:1},
+  {no:"M201201001",name:"고부릉1",start:46127,end:46491,used:0,remain:3},
+  {no:"M201201001",name:"고부릉1",start:46296,end:46326,used:0,remain:1},
+  {no:"M201307001",name:"이종선",start:46266,end:46295,used:null,remain:1},
+  {no:"M201501002",name:"배영섭",start:46357,end:46387,used:null,remain:1},
+  {no:"M201509002",name:"이승훈",start:46174,end:46203,used:null,remain:1},
+  {no:"M201610015",name:"이찬헌",start:46235,end:46265,used:null,remain:1},
+  {no:"M201610020",name:"방형진",start:46235,end:46265,used:null,remain:1},
+  {no:"M201705001",name:"권구희",start:46296,end:46326,used:null,remain:1},
+  {no:"M201710003",name:"안재형",start:46204,end:46234,used:null,remain:1},
+  {no:"M201808010",name:"윤인묵",start:46327,end:46356,used:null,remain:1},
+  {no:"M201809004",name:"손승진",start:46266,end:46295,used:null,remain:1},
+  {no:"M201904002",name:"신영철",start:46266,end:46295,used:null,remain:1},
+  {no:"M201906004",name:"염제우",start:46266,end:46295,used:null,remain:1},
+  {no:"M201907005",name:"김기훈",start:46174,end:46203,used:null,remain:1},
+  {no:"M201911010",name:"김현욱",start:46357,end:46387,used:null,remain:1},
+  {no:"M201912007",name:"주재욱",start:46327,end:46356,used:null,remain:1},
+  {no:"M202001003",name:"심용보",start:46235,end:46265,used:null,remain:1},
+  {no:"M202003006",name:"공경혜",start:46113,end:46142,used:1,remain:0},
+  {no:"M202004007",name:"배철현",start:46327,end:46356,used:null,remain:1},
+  {no:"M202006001",name:"김민혁",start:46113,end:46142,used:1,remain:0},
+  {no:"M202006007",name:"문성운",start:46296,end:46326,used:null,remain:1},
+  {no:"M202008009",name:"신선호",start:46296,end:46326,used:null,remain:1},
+  {no:"M202009012",name:"김유지",start:46204,end:46234,used:null,remain:1},
+  {no:"M202010003",name:"김윤수",start:46266,end:46295,used:null,remain:1},
+  {no:"M202010008",name:"진정현",start:46327,end:46356,used:null,remain:1},
+  {no:"M202011008",name:"정성욱",start:46296,end:46326,used:null,remain:1},
+  {no:"M202101011",name:"임지호",start:46143,end:46173,used:0,remain:1},
+  {no:"M202102013",name:"김다운",start:46113,end:46142,used:1,remain:0},
+  {no:"M202103003",name:"이승주",start:46235,end:46265,used:null,remain:1},
+  {no:"M202104019",name:"봉하영",start:46357,end:46387,used:null,remain:1},
+  {no:"M202105002",name:"지덕영",start:46296,end:46326,used:null,remain:1},
+  {no:"M202105023",name:"최은진",start:46174,end:46203,used:null,remain:1},
+  {no:"M202106010",name:"김건",start:46327,end:46356,used:null,remain:1},
+  {no:"M202107012",name:"김우진",start:46296,end:46326,used:null,remain:1},
+  {no:"M202108003",name:"이창민",start:46113,end:46142,used:0,remain:1},
+  {no:"M202108022",name:"이관형",start:46235,end:46265,used:null,remain:1},
+  {no:"M202109006",name:"김진아",start:46266,end:46295,used:null,remain:1},
+  {no:"M202110011",name:"이현우",start:46113,end:46142,used:1,remain:0},
+  {no:"M202111015",name:"김솔",start:46357,end:46387,used:null,remain:1},
+  {no:"M202112002",name:"김가현",start:46296,end:46326,used:null,remain:1},
+  {no:"M202201005",name:"원승준",start:46296,end:46326,used:null,remain:1},
+  {no:"M202201008",name:"홍태욱",start:46204,end:46234,used:null,remain:1},
+  {no:"M202203013",name:"박범춘",start:46266,end:46295,used:null,remain:1},
+  {no:"M202204003",name:"현승우",start:46143,end:46173,used:1,remain:0},
+  {no:"M202204004",name:"양수미",start:46113,end:46142,used:1,remain:0},
+  {no:"M202204010",name:"석민정",start:46357,end:46387,used:null,remain:1},
+  {no:"M202204015",name:"이지혜",start:46357,end:46387,used:null,remain:1},
+  {no:"M202204021",name:"김성원",start:46357,end:46387,used:null,remain:1},
+  {no:"M202204024",name:"나은선",start:46174,end:46203,used:null,remain:1},
+  {no:"M202205003",name:"김준홍",start:46357,end:46387,used:null,remain:1},
+  {no:"M202205004",name:"홍재준",start:46327,end:46356,used:null,remain:1},
+  {no:"M202205015",name:"이준성",start:46327,end:46356,used:null,remain:1},
+  {no:"M202206006",name:"김명준",start:46327,end:46356,used:null,remain:1},
+  {no:"M202206017",name:"김영수",start:46357,end:46387,used:null,remain:1},
+  {no:"M202207003",name:"곽주원",start:46204,end:46234,used:null,remain:1},
+  {no:"M202208001",name:"류범열",start:46174,end:46203,used:null,remain:1},
+  {no:"M202211001",name:"김준용",start:46296,end:46326,used:null,remain:1},
+  {no:"M202302001",name:"박나래",start:46204,end:46234,used:null,remain:1},
+  {no:"M202302010",name:"채윤서",start:46327,end:46356,used:null,remain:1},
+  {no:"M202304002",name:"김다영",start:46204,end:46234,used:null,remain:1},
+  {no:"M202305001",name:"이태윤",start:46327,end:46356,used:null,remain:1},
+  {no:"M202305005",name:"최은희",start:46266,end:46295,used:null,remain:1},
+  {no:"M202305008",name:"김용직",start:46204,end:46234,used:null,remain:1},
+  {no:"M202306002",name:"이종원",start:46296,end:46326,used:null,remain:1},
+  {no:"M202307002",name:"강명권",start:46143,end:46173,used:0,remain:1},
+  {no:"M202307003",name:"노준철",start:46266,end:46295,used:null,remain:1},
+  {no:"M202307005",name:"강윤우",start:46296,end:46326,used:null,remain:1},
+  {no:"M202308007",name:"이정식",start:46266,end:46295,used:null,remain:1},
+  {no:"M202308008",name:"박우일",start:46296,end:46326,used:null,remain:1},
+  {no:"M202309001",name:"형하은",start:46327,end:46356,used:null,remain:1},
+  {no:"M202310003",name:"이용수",start:46296,end:46326,used:null,remain:1},
+  {no:"M202310004",name:"장성우",start:46143,end:46173,used:1,remain:0},
+  {no:"M202310008",name:"정희연",start:46266,end:46295,used:null,remain:1},
+  {no:"M202311002",name:"이일건",start:46204,end:46234,used:null,remain:1},
+  {no:"M202312003",name:"강인후",start:46266,end:46295,used:null,remain:1},
+  {no:"M202312005",name:"김나현",start:46235,end:46265,used:null,remain:1},
+  {no:"M202401003",name:"강성하",start:46327,end:46356,used:null,remain:1},
+  {no:"M202401005",name:"소유빈",start:46235,end:46265,used:null,remain:1},
+  {no:"M202402005",name:"황성도",start:46357,end:46387,used:null,remain:1},
+  {no:"M202402008",name:"이선아",start:46235,end:46265,used:null,remain:1},
+  {no:"M202402011",name:"노웅언",start:46113,end:46142,used:1,remain:0},
+  {no:"M202404004",name:"김정수",start:46327,end:46356,used:null,remain:1},
+  {no:"M202405004",name:"손지훈",start:46266,end:46295,used:null,remain:1},
+  {no:"M202406002",name:"김선우",start:46174,end:46203,used:null,remain:1},
+  {no:"M202406004",name:"장문정",start:46327,end:46356,used:null,remain:1},
+  {no:"M202407005",name:"김승범",start:46235,end:46265,used:null,remain:1},
+  {no:"M202407007",name:"김이석",start:46296,end:46326,used:null,remain:1},
+  {no:"M202409002",name:"오승학",start:46357,end:46387,used:null,remain:1},
+  {no:"M202409003",name:"김태훈",start:46296,end:46326,used:null,remain:1},
+  {no:"M202409005",name:"노혜진",start:46327,end:46356,used:null,remain:1},
+  {no:"M202410002",name:"정종은",start:46357,end:46387,used:null,remain:1},
+  {no:"M202410004",name:"문성현",start:46143,end:46173,used:1,remain:0},
+  {no:"M202410005",name:"최병헌",start:46204,end:46234,used:null,remain:1},
+  {no:"M202410006",name:"김서희",start:46204,end:46234,used:null,remain:1},
+  {no:"M202411002",name:"김태현",start:46204,end:46234,used:null,remain:1},
+  {no:"M202412001",name:"오원규",start:46143,end:46173,used:0,remain:1},
+  {no:"M202501003",name:"이상범",start:46174,end:46203,used:null,remain:1},
+  {no:"M202501004",name:"김희영",start:46296,end:46326,used:null,remain:1},
+  {no:"M202501005",name:"박혜연",start:46266,end:46295,used:null,remain:1},
+  {no:"M202502001",name:"송태우",start:46296,end:46326,used:null,remain:1},
+  {no:"M202502003",name:"정희윤",start:46327,end:46356,used:null,remain:1},
+  {no:"M202503001",name:"손기범",start:46204,end:46234,used:null,remain:1},
+  {no:"M202503002",name:"강현묵",start:46174,end:46203,used:null,remain:1},
+  {no:"M202503003",name:"장수백",start:46266,end:46295,used:null,remain:1},
+  {no:"M202503006",name:"김희섬",start:46266,end:46295,used:null,remain:1},
+  {no:"M202504001",name:"김소이",start:46143,end:46173,used:0,remain:1},
+  {no:"M202504002",name:"이현화",start:46113,end:46142,used:1,remain:0},
+  {no:"M202504003",name:"김세현",start:46327,end:46356,used:null,remain:1},
+  {no:"M202504004",name:"이성훈",start:46296,end:46326,used:null,remain:1},
+  {no:"M202505003",name:"장아영",start:46113,end:46142,used:1,remain:0},
+  {no:"M202505004",name:"김예림",start:46235,end:46265,used:null,remain:1},
+  {no:"M202506002",name:"조두영",start:46357,end:46387,used:null,remain:1},
+  {no:"M202509002",name:"최성호",start:46174,end:46203,used:null,remain:1},
+  {no:"M202510002",name:"한영수",start:46143,end:46173,used:0,remain:1},
+  {no:"M202510003",name:"정지석",start:46235,end:46265,used:null,remain:1},
+  {no:"M202511001",name:"고성진",start:46296,end:46326,used:null,remain:1},
+  {no:"M202512002",name:"임동환",start:46235,end:46265,used:null,remain:1},
+  {no:"M202512003",name:"조한솔",start:46143,end:46173,used:0,remain:1},
+  {no:"M202601001",name:"곽미정",start:46296,end:46326,used:null,remain:1},
+  {no:"M202601002",name:"소재빈",start:46296,end:46326,used:null,remain:1},
+  {no:"M202601003",name:"강수은",start:46174,end:46203,used:null,remain:1},
+  {no:"M202601006",name:"성박현",start:46174,end:46203,used:null,remain:1},
+  {no:"M202601008",name:"김동언",start:46235,end:46265,used:null,remain:1},
+  {no:"M202601009",name:"김희겸",start:46296,end:46326,used:null,remain:1},
+  {no:"M202601011",name:"여영은",start:46235,end:46265,used:null,remain:1},
+  {no:"M202601012",name:"김동민",start:46174,end:46203,used:null,remain:1},
+  {no:"M202602005",name:"이동현",start:46296,end:46326,used:null,remain:1},
+  {no:"M202602006",name:"정우주",start:46357,end:46387,used:null,remain:1},
+  {no:"M202603001",name:"장혜원",start:46235,end:46265,used:null,remain:1},
+  {no:"M202603005",name:"이승훈B",start:46266,end:46295,used:null,remain:1},
+  {no:"M202603006",name:"방진선",start:46113,end:46142,used:0,remain:1},
+  {no:"M202603007",name:"이정은",start:46266,end:46295,used:null,remain:1},
+  {no:"M202604001",name:"고성민",start:46120,end:46142,used:1,remain:0},
+  {no:"M202604002",name:"이상겸",start:46174,end:46203,used:null,remain:1},
+  {no:"M202604003",name:"정찬규",start:46174,end:46203,used:null,remain:1},
+  {no:"M202604004",name:"김수호",start:46296,end:46326,used:null,remain:1},
+];
+
+function excelToDate(n) {
+  if (n == null) return null;
+  const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+function fmtDate(d) {
+  if (!d) return '-';
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+const parsed = RAW.map(r => ({
+  ...r,
+  startDate: excelToDate(r.start),
+  endDate: excelToDate(r.end),
+}));
+
+const months = [...new Set(parsed.map(r => {
+  const d = r.startDate;
+  return d ? d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') : null;
+}).filter(Boolean))].sort();
+
+const sel = document.getElementById('monthSel');
+months.forEach(m => {
+  const opt = document.createElement('option');
+  opt.value = m;
+  opt.textContent = m.replace('-', '년 ') + '월';
+  sel.appendChild(opt);
+});
+
+const today = new Date();
+const currentMonth = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0');
+if (months.includes(currentMonth)) sel.value = currentMonth;
+else sel.value = months[0] || '';
+
+let currentFilter = 'all';
+
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+
+function isUnused(r) {
+  return r.remain > 0 && (r.used === null || r.used === 0);
+}
+
+function render() {
+  const m = sel.value;
+  if (!m) return;
+  const [yr, mo] = m.split('-').map(Number);
+
+  let rows = parsed.filter(r => {
+    const d = r.startDate;
+    return d && d.getFullYear() === yr && d.getMonth()+1 === mo;
+  });
+
+  const total = rows.length;
+  const unused = rows.filter(isUnused).length;
+  const used = rows.filter(r => !isUnused(r)).length;
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="label">해당 월 생일자</div><div class="value">${total}명</div></div>
+    <div class="stat-card"><div class="label">미사용</div><div class="value warn">${unused}명</div></div>
+    <div class="stat-card"><div class="label">사용완료</div><div class="value done">${used}명</div></div>
+  `;
+
+  if (currentFilter === 'unused') rows = rows.filter(isUnused);
+  else if (currentFilter === 'used') rows = rows.filter(r => !isUnused(r));
+
+  const tbody = document.getElementById('tableBody');
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">해당 조건의 직원이 없습니다.</div></td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td style="font-size:12px; color:var(--color-text-secondary);">${r.no}</td>
+        <td style="font-weight:500;">${r.name}</td>
+        <td>${fmtDate(r.startDate)}</td>
+        <td>${fmtDate(r.endDate)}</td>
+        <td style="text-align:center;">${r.used ?? 0}일</td>
+        <td style="text-align:center;">${r.remain}일</td>
+        <td>${isUnused(r)
+          ? '<span class="badge badge-unused">미사용</span>'
+          : '<span class="badge badge-used">완료</span>'}</td>
+      </tr>
+    `).join('');
+  }
+
+  const unusedList = parsed.filter(r => {
+    const d = r.startDate;
+    return d && d.getFullYear() === yr && d.getMonth()+1 === mo && isUnused(r);
+  });
+
+  const dmSection = document.getElementById('dmSection');
+  if (unusedList.length === 0) {
+    dmSection.innerHTML = `<div class="dm-box"><div class="empty-state" style="padding:1rem;">이번 달 미사용자가 없습니다 🎉</div></div>`;
+    return;
+  }
+
+  const monthLabel = mo + '월';
+
+  const msgs = unusedList.map(r => {
+    return `안녕하세요, ${r.name}님.\n${monthLabel} 생일을 축하드립니다!🎉\n부릉에서는 생일 당월, 더 행복한 한 달 보내실 수 있도록 생일휴가 1일을 드리고 있습니다.\n📅 생일휴가 1일 부여\n\n* 신청 및 사용 기한: 생일 당월인 ${monthLabel} 말일까지\n* 말일 이후 자동소멸되며, 당월 내에서만 사용 가능\n\n📌 신청 방법\n\n* 옴니이솔 → 인사관리 → My HR(ESS) → 근태신청(NEW) → [휴가신청서]\n→ 휴가종류 선택: \`기타휴가\` > \`생일휴가\` 선택\n\n📢 결재 라인\n\n* \`1차 조직장(결재)\` - \`피플실(합의)\`\n* 주의사항: 반드시 '피플실(합의)' 지정\n\n즐겁고 행복한 한 달 되세요! 🎉`;
+  });
+
+  dmSection.innerHTML = `
+    <p class="section-title">슬랙 DM 문구 (미사용자 ${unusedList.length}명)</p>
+    ${unusedList.map((r, i) => `
+      <div class="dm-box">
+        <div class="dm-header">
+          <span><strong style="color:var(--color-text-primary);">${r.name}</strong> (${r.no})</span>
+          <button class="copy-btn" onclick="copyMsg(${i})" id="copyBtn${i}"><i class="ti ti-copy" aria-hidden="true" style="margin-right:4px;"></i>복사</button>
+        </div>
+        <div class="dm-msg" id="dmMsg${i}">${msgs[i]}</div>
+      </div>
+    `).join('')}
+  `;
+
+  window._msgs = msgs;
+}
+
+function copyMsg(i) {
+  const text = window._msgs[i];
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn' + i);
+    btn.innerHTML = '<i class="ti ti-check" aria-hidden="true" style="margin-right:4px;"></i>복사됨';
+    btn.style.color = 'var(--color-text-success)';
+    setTimeout(() => {
+      btn.innerHTML = '<i class="ti ti-copy" aria-hidden="true" style="margin-right:4px;"></i>복사';
+      btn.style.color = '';
+    }, 2000);
+  });
+}
+
+sel.addEventListener('change', render);
+render();
+</script>
