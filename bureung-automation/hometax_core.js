@@ -274,7 +274,7 @@
   var API = {
     buildHometaxFiles: buildHometaxFiles, buildHometaxXlsx: buildHometaxXlsx,
     buildZipOfFiles: buildZipOfFiles, toSheetCells: toSheetCells,
-    foreignFlag: foreignFlag, HT_HEADER: HT_HEADER, HT_DEFAULTS: HT_DEFAULTS
+    foreignFlag: foreignFlag, zip: zip, HT_HEADER: HT_HEADER, HT_DEFAULTS: HT_DEFAULTS
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.HometaxCore = API;

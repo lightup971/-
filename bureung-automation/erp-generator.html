@@ -143,6 +143,13 @@
   .chip.kb{background:var(--surface-3);color:var(--ink-soft);border:1px solid var(--border-strong)}
   .chip.kh{background:var(--accent-soft);color:var(--accent);border:1px solid var(--border)}
 
+  .allbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;
+    background:var(--accent-soft);border:1px solid var(--border);border-radius:12px;
+    padding:14px 16px;margin-bottom:18px}
+  .allbar-txt .t{font-size:14.5px;font-weight:700;letter-spacing:-.01em}
+  .allbar-txt .s{font-size:12.5px;color:var(--ink-soft);margin-top:3px;font-variant-numeric:tabular-nums}
+  .allbar button{white-space:nowrap}
+
   .tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border)}
   .tab{background:none;border:none;border-bottom:2px solid transparent;border-radius:8px 8px 0 0;
     padding:9px 15px;font-size:14px;font-weight:600;color:var(--ink-faint);cursor:pointer;display:flex;align-items:center;gap:7px}
@@ -224,6 +231,14 @@
   <section class="card" id="results">
     <p class="eyebrow"><span class="n">2</span>결과 확인 &amp; 다운로드</p>
     <div id="diag" class="diag"></div>
+
+    <div class="allbar">
+      <div class="allbar-txt">
+        <div class="t">ERP + 홈택스 파일을 한 번에</div>
+        <div class="s" id="all-summary"></div>
+      </div>
+      <button class="btn-good" id="download-all">⬇  전체 받기 (.zip)</button>
+    </div>
 
     <div class="tabs" role="tablist">
       <button class="tab active" id="tab-erp" role="tab" aria-selected="true">ERP 업로드 <span class="cnt" id="cnt-erp"></span></button>
@@ -689,6 +704,7 @@
     buildZipOfFiles: buildZipOfFiles, toSheetCells: toSheetCells,
     foreignFlag: foreignFlag, HT_HEADER: HT_HEADER, HT_DEFAULTS: HT_DEFAULTS
   };
+  API.zip = zip;
   root.HometaxCore = API;
 })(window);
 
@@ -772,6 +788,7 @@
     if(!f.length){
       $('ht-files').innerHTML='<div class="empty">생성된 월별 파일이 없습니다.</div>';
       $('ht-zip').disabled=true; $('ht-fname').textContent=''; $('ht-tbody').innerHTML='';
+      updateAllBar();
       return;
     }
     $('ht-files').innerHTML=f.map(function(file,i){
@@ -799,6 +816,7 @@
           '<td class="num">'+comma(String(r.intax))+'</td><td class="num">'+comma(String(r.locint))+'</td></tr>';
       }).join('');
     }).join('');
+    updateAllBar();
   }
 
   function saveBytes(bytes,name,mime){
@@ -819,12 +837,44 @@
     saveBytes(window.HometaxCore.buildZipOfFiles(f,{}),
       '간이지급명세서_'+f[0].ym+'~'+f[f.length-1].ym+'.zip','application/zip');
   }
+  /* ── ERP + 홈택스 전체를 ZIP 하나로 ── */
+  function downloadAll(){
+    if(!lastBuilt||!lastBuilt.rows.length)return;
+    var entries=[];
+    // ERP 업로드 파일
+    entries.push({ name:'ERP/'+fileName(), data:window.ERPCore.buildXlsx(lastBuilt) });
+    // 홈택스 월별 파일
+    if(htBuilt&&htBuilt.files.length){
+      htBuilt.files.forEach(function(f){
+        entries.push({ name:'홈택스/'+f.fileName, data:window.HometaxCore.buildHometaxXlsx(f,{}) });
+      });
+    }
+    saveBytes(window.HometaxCore.zip(entries),'수정신고_업로드파일_'+stampName()+'.zip','application/zip');
+  }
+  function stampName(){
+    var d=new Date();
+    return d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate())+'_'+pad2(d.getHours())+pad2(d.getMinutes());
+  }
+  function updateAllBar(){
+    var n=(htBuilt&&htBuilt.files.length)||0;
+    var okErp=lastBuilt&&lastBuilt.rows.length;
+    if(!okErp){
+      $('all-summary').textContent='변환된 데이터가 없습니다.';
+      $('download-all').disabled=true; return;
+    }
+    $('all-summary').innerHTML='ERP 업로드 <b>1</b>개 + 홈택스 월별 <b>'+n+'</b>개 = 총 <b>'+(1+n)+'</b>개 파일'
+      +(n?' <span style="color:var(--ink-faint)">(ZIP 안에서 ERP / 홈택스 폴더로 나뉩니다)</span>':'');
+    $('download-all').disabled=false;
+  }
+
   function clearHt(){
     htBuilt=null;
     $('ht-tiles').innerHTML=''; $('ht-banners').innerHTML='';
     $('ht-files').innerHTML=''; $('ht-tbody').innerHTML='';
     $('ht-zip').disabled=true; $('ht-fname').textContent='';
     $('cnt-erp').textContent=''; $('cnt-ht').textContent='';
+    $('all-summary').textContent='변환된 데이터가 없습니다.';
+    $('download-all').disabled=true;
     switchTab('erp');
   }
   function switchTab(which){
@@ -899,6 +949,7 @@
   $('go').addEventListener('click',run);
   $('download').addEventListener('click',download);
   $('ht-zip').addEventListener('click',downloadHtZip);
+  $('download-all').addEventListener('click',downloadAll);
   $('tab-erp').addEventListener('click',function(){switchTab('erp');});
   $('tab-ht').addEventListener('click',function(){switchTab('ht');});
   $('sample').addEventListener('click',function(){$('input').value=SAMPLE;run();});
