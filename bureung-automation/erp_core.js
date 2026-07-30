@@ -82,6 +82,7 @@
     var n = Number(String(v).replace(/[, ]/g, ''));
     return isNaN(n) ? null : Math.round(n);
   }
+  function normalizeRrn(v) { return v == null ? '' : String(v).replace(/[^0-9]/g, ''); }
   function cell(r, off) { return off < r.length ? r[off] : ''; }
   function notEmpty(v) { return v != null && String(v).trim() !== ''; }
 
@@ -123,8 +124,10 @@
         warnings.groups++;
         var pb = parseNameCode(cell(r, O.부인자명));
         var ph = parseNameCode(cell(r, O.해당자명));
-        curBuin  = { name: pb.name, code: padCode(pb.code, cfg.CODE_PAD_LEN) };
-        curHaing = { name: ph.name, code: padCode(ph.code, cfg.CODE_PAD_LEN) };
+        curBuin  = { name: pb.name, code: padCode(pb.code, cfg.CODE_PAD_LEN),
+                     rrn: normalizeRrn(cell(r, O.부인주민)) };
+        curHaing = { name: ph.name, code: padCode(ph.code, cfg.CODE_PAD_LEN),
+                     rrn: normalizeRrn(cell(r, O.해당주민)) };
       }
       var ym = parseYm(cell(r, O.지급연월));
       if (ym === null) return;
@@ -138,7 +141,8 @@
         var bLoc = toInt(cell(r, O.부인최종지방)) || 0;
         var bMiss = !curBuin.code;
         if (bMiss) noteMissing((curBuin.name || '(이름없음)') + '(부인자)');
-        out.push({ kind: '부인', name: curBuin.name, missing: bMiss,
+        out.push({ kind: '부인', name: curBuin.name, code: curBuin.code, rrn: curBuin.rrn,
+          ym: ym, amt: bAmt, intax: bIntax, locint: bLoc, missing: bMiss,
           cells: erpRow(curBuin.code, ym, bAmt, bIntax, bLoc) });
         warnings.buin++;
       }
@@ -158,7 +162,8 @@
         if (amt !== null && amt > 0) {
           var hMiss = !curHaing.code;
           if (hMiss) noteMissing((curHaing.name || '(이름없음)') + '(해당자)');
-          out.push({ kind: '해당', name: curHaing.name, missing: hMiss,
+          out.push({ kind: '해당', name: curHaing.name, code: curHaing.code, rrn: curHaing.rrn,
+            ym: ym, amt: amt, intax: intax, locint: locint, missing: hMiss,
             cells: erpRow(curHaing.code, ym, amt, intax, locint) });
           warnings.haing++;
         }

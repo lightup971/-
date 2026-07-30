@@ -143,6 +143,26 @@
   .chip.kb{background:var(--surface-3);color:var(--ink-soft);border:1px solid var(--border-strong)}
   .chip.kh{background:var(--accent-soft);color:var(--accent);border:1px solid var(--border)}
 
+  .tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border)}
+  .tab{background:none;border:none;border-bottom:2px solid transparent;border-radius:8px 8px 0 0;
+    padding:9px 15px;font-size:14px;font-weight:600;color:var(--ink-faint);cursor:pointer;display:flex;align-items:center;gap:7px}
+  .tab:hover{color:var(--ink-soft);background:var(--surface-2)}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .tab .cnt{font-size:11px;font-weight:700;padding:1px 7px;border-radius:20px;background:var(--surface-3);color:var(--ink-soft);
+    font-variant-numeric:tabular-nums}
+  .tab.active .cnt{background:var(--accent-soft);color:var(--accent)}
+
+  .mfiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+  .mfile{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;
+    display:flex;flex-direction:column;gap:10px}
+  .mfile .ym{font-size:19px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .mfile .meta{font-size:12px;color:var(--ink-soft);display:flex;flex-direction:column;gap:2px}
+  .mfile .meta b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .mfile button{font-size:13px;padding:8px 12px;background:var(--surface);color:var(--accent);
+    border:1px solid var(--border-strong)}
+  .mfile button:hover{background:var(--accent-soft);border-color:var(--accent)}
+  .mfile.over{border-color:var(--warn-bd);background:var(--warn-bg)}
+
   .downbar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:20px;padding-top:18px;border-top:1px solid var(--border)}
   .downbar .fname{font-family:var(--mono);font-size:13px;color:var(--ink-soft)}
   .empty{color:var(--ink-faint);font-size:14px;text-align:center;padding:28px 0}
@@ -204,28 +224,64 @@
   <section class="card" id="results">
     <p class="eyebrow"><span class="n">2</span>결과 확인 &amp; 다운로드</p>
     <div id="diag" class="diag"></div>
-    <div class="tiles" id="tiles"></div>
-    <div id="banners"></div>
-    <div class="tablewrap"><table>
-      <thead><tr>
-        <th>구분</th>
-        <th>소득자명<br><span style="font-weight:400;color:var(--ink-faint)">(파일 미포함)</span></th>
-        <th>소득자코드</th><th>지급연월</th><th>귀속년월</th><th>지급일</th>
-        <th>사업장</th><th>부서</th><th>지급액</th><th>업종</th><th>세율</th><th>소득세</th><th>지방세</th><th>상태</th>
-      </tr></thead>
-      <tbody id="tbody"></tbody>
-    </table></div>
-    <div class="downbar">
-      <button class="btn-good" id="download">⬇  ERP 업로드 엑셀 다운로드 (.xlsx)</button>
-      <span class="fname" id="fname"></span>
+
+    <div class="tabs" role="tablist">
+      <button class="tab active" id="tab-erp" role="tab" aria-selected="true">ERP 업로드 <span class="cnt" id="cnt-erp"></span></button>
+      <button class="tab" id="tab-ht" role="tab" aria-selected="false">홈택스 간이지급명세서 <span class="cnt" id="cnt-ht"></span></button>
+    </div>
+
+    <!-- ── ERP 패널 ── -->
+    <div id="panel-erp" role="tabpanel">
+      <div class="tiles" id="tiles"></div>
+      <div id="banners"></div>
+      <div class="tablewrap"><table>
+        <thead><tr>
+          <th>구분</th>
+          <th>소득자명<br><span style="font-weight:400;color:var(--ink-faint)">(파일 미포함)</span></th>
+          <th>소득자코드</th><th>지급연월</th><th>귀속년월</th><th>지급일</th>
+          <th>사업장</th><th>부서</th><th>지급액</th><th>업종</th><th>세율</th><th>소득세</th><th>지방세</th><th>상태</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table></div>
+      <div class="downbar">
+        <button class="btn-good" id="download">⬇  ERP 업로드 엑셀 다운로드 (.xlsx)</button>
+        <span class="fname" id="fname"></span>
+      </div>
+    </div>
+
+    <!-- ── 홈택스 패널 ── -->
+    <div id="panel-ht" role="tabpanel" hidden>
+      <div class="tiles" id="ht-tiles"></div>
+      <div id="ht-banners"></div>
+      <p class="lead" style="margin:2px 0 12px">
+        수정신고는 <b>귀속월별로 따로 업로드</b>해야 하므로, 붙여넣은 기간을 <b>월별 파일로 자동 분리</b>했습니다.
+        각 파일을 홈택스 [엑셀서식작성] → [찾아보기] 업로드 → [검증하기] 하세요.
+      </p>
+      <div id="ht-files" class="mfiles"></div>
+      <div class="downbar">
+        <button class="btn-good" id="ht-zip">⬇  월별 파일 전체 받기 (.zip)</button>
+        <span class="fname" id="ht-fname"></span>
+      </div>
+      <details class="cols" style="margin-top:16px">
+        <summary>홈택스 파일 내용 미리보기</summary>
+        <div class="tablewrap" style="border:none;border-radius:0">
+          <table>
+            <thead><tr>
+              <th>귀속</th><th>No</th><th>구분</th><th>소득자성명</th><th>주민(사업자)등록번호</th>
+              <th>내외국인</th><th>업종</th><th>지급액</th><th>세율</th><th>소득세</th><th>지방소득세</th>
+            </tr></thead>
+            <tbody id="ht-tbody"></tbody>
+          </table>
+        </div>
+      </details>
     </div>
   </section>
 
   <footer>
-    <b>생성물</b>은 실제 ERP 양식 <code class="k">TSMINC00700_F</code>과 컬럼·시트명이 같고, 모든 셀이 텍스트 서식입니다 →
-    옴니이솔 [엑셀파일업로드] → 오류검증 → 서식반영.<br>
-    <b>구분</b> · <b>부인</b> = 소득부인자 정정 행(최종금액 = 시트 S·T·U열, 전액부인이면 0), <b>해당</b> = 소득해당자 반영 행(최종금액 = AA·AB·AC열). 월별로 두 줄이 함께 생성됩니다.<br>
-    <b>참고</b> · 최종 소득세는 (기존 + 부인) 합산이라 지급액×3%와 몇 원 다를 수 있으며 정상입니다. 소득자코드는 소득자별 이름 셀 끝의 숫자에서 자동 추출됩니다.
+    <b>ERP</b> · 양식 <code class="k">TSMINC00700_F</code>과 컬럼·시트명이 같고 모든 셀이 텍스트 서식 → 옴니이솔 [엑셀파일업로드] → 오류검증 → 서식반영.<br>
+    <b>홈택스</b> · 국세청 간이지급명세서 양식(<code class="k">Sheet1</code>)과 컬럼·타입·서식이 동일하며 <b>귀속월별로 파일이 분리</b>됩니다. 같은 소득자가 한 달에 두 번 나오면 <b>합산해 한 줄</b>로 만듭니다. 내외국인('1'/'9')은 주민번호 뒷자리로 자동 판별합니다.<br>
+    <b>구분</b> · <b>부인</b> = 소득부인자 정정 행(시트 S·T·U열, 전액부인이면 0), <b>해당</b> = 소득해당자 반영 행(AA·AB·AC열).<br>
+    <b>참고</b> · 최종 소득세는 (기존 + 부인) 합산이라 지급액×3%와 몇 원 다를 수 있으며 정상입니다.
   </footer>
 </div>
 
@@ -267,6 +323,7 @@
   function lastDayYmd(ym){ var y=parseInt(ym.substr(0,4),10),mo=parseInt(ym.substr(4,2),10);
     return ym+('0'+new Date(y,mo,0).getDate()).slice(-2); }
   function toInt(v){ if(v==null||v==='')return null; var n=Number(String(v).replace(/[, ]/g,'')); return isNaN(n)?null:Math.round(n); }
+  function normalizeRrn(v){ return v==null?'':String(v).replace(/[^0-9]/g,''); }
   function cell(r,off){ return off<r.length?r[off]:''; }
   function notEmpty(v){ return v!=null&&String(v).trim()!==''; }
 
@@ -285,15 +342,15 @@
     matrix.forEach(function(r){
       if(O.부인자명>=0&&notEmpty(cell(r,O.부인자명))){ warnings.groups++;
         var pb=parseNameCode(cell(r,O.부인자명)),ph=parseNameCode(cell(r,O.해당자명));
-        curBuin={name:pb.name,code:padCode(pb.code,cfg.CODE_PAD_LEN)};
-        curHaing={name:ph.name,code:padCode(ph.code,cfg.CODE_PAD_LEN)}; }
+        curBuin={name:pb.name,code:padCode(pb.code,cfg.CODE_PAD_LEN),rrn:normalizeRrn(cell(r,O.부인주민))};
+        curHaing={name:ph.name,code:padCode(ph.code,cfg.CODE_PAD_LEN),rrn:normalizeRrn(cell(r,O.해당주민))}; }
       var ym=parseYm(cell(r,O.지급연월)); if(ym===null)return; warnings.ymOk++;
       if(!curBuin){warnings.orphan++;return;}
       if(cfg.INCLUDE!=='HAING'){
         var bAmt=toInt(cell(r,O.부인최종소득)); if(bAmt===null)bAmt=0;
         var bIx=toInt(cell(r,O.부인최종소득세))||0, bLo=toInt(cell(r,O.부인최종지방))||0;
         var bM=!curBuin.code; if(bM)noteMissing((curBuin.name||'(이름없음)')+'(부인자)');
-        out.push({kind:'부인',name:curBuin.name,missing:bM,cells:erpRow(curBuin.code,ym,bAmt,bIx,bLo)}); warnings.buin++; }
+        out.push({kind:'부인',name:curBuin.name,code:curBuin.code,rrn:curBuin.rrn,ym:ym,amt:bAmt,intax:bIx,locint:bLo,missing:bM,cells:erpRow(curBuin.code,ym,bAmt,bIx,bLo)}); warnings.buin++; }
       if(cfg.INCLUDE!=='BUIN'){
         var amt=toInt(cell(r,O.최종소득)),intax=toInt(cell(r,O.최종소득세)),locint=toInt(cell(r,O.최종지방));
         if(amt===null){ amt=(toInt(cell(r,O.해당기존소득))||0)+(toInt(cell(r,O.부인소득))||0);
@@ -302,7 +359,7 @@
           if(amt>0)warnings.fallback++; }
         intax=intax||0; locint=locint||0;
         if(amt!==null&&amt>0){ var hM=!curHaing.code; if(hM)noteMissing((curHaing.name||'(이름없음)')+'(해당자)');
-          out.push({kind:'해당',name:curHaing.name,missing:hM,cells:erpRow(curHaing.code,ym,amt,intax,locint)}); warnings.haing++; }
+          out.push({kind:'해당',name:curHaing.name,code:curHaing.code,rrn:curHaing.rrn,ym:ym,amt:amt,intax:intax,locint:locint,missing:hM,cells:erpRow(curHaing.code,ym,amt,intax,locint)}); warnings.haing++; }
       }
     });
     return {rows:out,warnings:warnings,cfg:cfg};
@@ -353,10 +410,292 @@
   root.ERPCore={parseClipboard:parseClipboard,buildRows:buildRows,buildXlsx:buildXlsx,ERP_LABELS:ERP_LABELS};
 })(window);
 
+/* ===== 홈택스 코어 (Node 검증: 원본 양식과 타입·서식 100% 일치) ===== */
+/* ============================================================================
+ *  홈택스 간이지급명세서(거주자의 사업소득) 업로드 엑셀 생성 — 순수 JS 코어
+ * ----------------------------------------------------------------------------
+ *  국세청 양식(Sheet1) 구조 — 컬럼마다 타입이 다르므로 그대로 재현해야 함:
+ *    A 일련번호        숫자(General)  1부터 순차
+ *    B 귀속연도        숫자(General)  예: 2024
+ *    C 귀속월          문자(@)        예: '01'  ← 앞자리 0 유지
+ *    D 업종코드        숫자(@서식)    940918(퀵서비스)
+ *    E 소득자성명(상호) 문자(@)
+ *    F 주민(사업자)등록번호 문자(@)    13자리, 하이픈 없음
+ *    G 내외국인        문자(@)        '1'=내국인 / '9'=외국인
+ *    H 지급액          숫자(#,##0)
+ *    I 세율            문자(@)        '3'
+ *    J 소득세          숫자(#,##0)
+ *    K 지방소득세      숫자(#,##0)
+ *
+ *  제출요령(원본):
+ *   · 반드시 2행부터 데이터 입력, 1,000라인 초과 불가
+ *   · Sheet명 수정 시 오류 → 'Sheet1' 유지
+ *   · 지급액 음수 불가, 없으면 0
+ *   · 입력한 행 이후에 임의의 값이 있으면 오류
+ *
+ *  월별로 파일을 분리 생성한다(귀속월 = 구글시트 지급연월).
+ * ==========================================================================*/
+(function (root) {
+  'use strict';
+
+  var HT_HEADER = [
+    '일련번호\n1부터 순차로 기재', '귀속연도', "귀속월\n예시) 1월인 경우  '01' ", '업종코드',
+    '소득자성명(상호)', '주민(사업자)등록번호', "내외국인\n'1' 또는 '9' 기재",
+    '지급액', '세율', '소득세', '지방소득세'
+  ];
+
+  var HT_DEFAULTS = {
+    BIZTP_CD: 940918,     // 업종코드(퀵서비스) — 숫자
+    TAX_RT: '3',          // 세율 — 문자
+    MERGE_DUP: true,      // 같은 주민번호+귀속월 합산
+    MAX_ROWS: 1000,       // 홈택스 1파일 최대 라인
+    SHEET_NAME: 'Sheet1'
+  };
+
+  /* 주민번호 뒷자리 첫 숫자로 내/외국인 판별: 1~4 내국인('1'), 5~8 외국인('9') */
+  function foreignFlag(rrn13) {
+    var d = String(rrn13 || '').replace(/[^0-9]/g, '');
+    if (d.length !== 13) return { flag: '1', ok: false };
+    var g = d.charAt(6);
+    if ('1234'.indexOf(g) >= 0) return { flag: '1', ok: true };
+    if ('5678'.indexOf(g) >= 0) return { flag: '9', ok: true };
+    return { flag: '1', ok: false };
+  }
+
+  /**
+   * ERP 코어의 buildRows() 결과(rows: {kind,name,code,rrn,ym,amt,intax,locint})를
+   * 월별 홈택스 파일 데이터로 변환.
+   * @return {files:[{ym, year, month, rows:[...], name}], warnings:{...}}
+   */
+  function buildHometaxFiles(built, opt) {
+    opt = opt || {};
+    var cfg = Object.assign({}, HT_DEFAULTS, opt);
+    var src = built.rows || [];
+    var warn = { noRrn: [], badFlag: [], merged: 0, overflow: [], months: 0, total: 0 };
+
+    // 1) 귀속월별로 묶기
+    var byYm = {}, order = [];
+    src.forEach(function (r) {
+      if (!r.ym) return;
+      if (!byYm[r.ym]) { byYm[r.ym] = []; order.push(r.ym); }
+      byYm[r.ym].push(r);
+    });
+    order.sort();
+
+    var files = order.map(function (ym) {
+      var list = byYm[ym];
+
+      // 2) 같은 주민번호는 합산 (홈택스는 소득자별 1행)
+      var out = [], idx = {};
+      list.forEach(function (r) {
+        var rrn = String(r.rrn || '').replace(/[^0-9]/g, '');
+        var key = rrn || ('@name:' + r.name + '/' + r.kind);   // 주민번호 없으면 합치지 않음
+        if (cfg.MERGE_DUP && rrn && idx[key] !== undefined) {
+          var t = out[idx[key]];
+          t.amt += r.amt; t.intax += r.intax; t.locint += r.locint;
+          t.mergedCount++;
+          warn.merged++;
+          return;
+        }
+        var ff = foreignFlag(rrn);
+        if (!rrn) {
+          if (warn.noRrn.indexOf(r.name) < 0) warn.noRrn.push(r.name || '(이름없음)');
+        } else if (!ff.ok) {
+          if (warn.badFlag.indexOf(r.name) < 0) warn.badFlag.push(r.name || '(이름없음)');
+        }
+        idx[key] = out.length;
+        out.push({
+          name: r.name, rrn: rrn, kind: r.kind, foreign: ff.flag,
+          amt: r.amt, intax: r.intax, locint: r.locint, mergedCount: 1
+        });
+      });
+
+      if (out.length > cfg.MAX_ROWS) warn.overflow.push(ym);
+      warn.total += out.length;
+      return {
+        ym: ym, year: parseInt(ym.substr(0, 4), 10), month: ym.substr(4, 2),
+        rows: out, fileName: '간이지급명세서_' + ym + '.xlsx'
+      };
+    });
+    warn.months = files.length;
+    return { files: files, warnings: warn, cfg: cfg };
+  }
+
+  /** 한 달치 파일 → Sheet1 셀 배열(AOA). 각 셀은 {v, t:'n'|'s', s:styleIdx} */
+  function toSheetCells(file, cfg) {
+    var S_GEN = 0, S_TXT = 1, S_NUM = 2;
+    var aoa = [HT_HEADER.map(function (h) { return { v: h, t: 's', s: S_TXT }; })];
+    file.rows.forEach(function (r, i) {
+      aoa.push([
+        { v: i + 1,             t: 'n', s: S_GEN },   // A 일련번호
+        { v: file.year,         t: 'n', s: S_GEN },   // B 귀속연도
+        { v: file.month,        t: 's', s: S_TXT },   // C 귀속월 '01'
+        { v: cfg.BIZTP_CD,      t: 'n', s: S_TXT },   // D 업종코드(값 숫자, 서식 @)
+        { v: r.name,            t: 's', s: S_TXT },   // E 성명
+        { v: r.rrn,             t: 's', s: S_TXT },   // F 주민번호 13자리
+        { v: r.foreign,         t: 's', s: S_TXT },   // G 내외국인
+        { v: Math.max(0, r.amt), t: 'n', s: S_NUM },  // H 지급액(음수 불가)
+        { v: cfg.TAX_RT,        t: 's', s: S_TXT },   // I 세율
+        { v: Math.max(0, r.intax),  t: 'n', s: S_NUM },  // J 소득세
+        { v: Math.max(0, r.locint), t: 'n', s: S_NUM }   // K 지방소득세
+      ]);
+    });
+    return aoa;
+  }
+
+  /* ---------------- XLSX (타입 혼합 지원) ---------------- */
+  function xmlEsc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function colLetter(n) { var s = ''; n++; while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - m - 1) / 26; } return s; }
+
+  function sheetXmlTyped(aoa) {
+    var rows = aoa.map(function (arr, ri) {
+      var cells = arr.map(function (c, ci) {
+        if (c == null || c.v === '' || c.v == null) return '';
+        var ref = colLetter(ci) + (ri + 1);
+        var s = ' s="' + (c.s || 0) + '"';
+        if (c.t === 'n') return '<c r="' + ref + '"' + s + '><v>' + c.v + '</v></c>';
+        return '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(c.v) + '</t></is></c>';
+      }).join('');
+      return '<row r="' + (ri + 1) + '">' + cells + '</row>';
+    }).join('');
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<cols><col min="1" max="1" width="15.75" customWidth="1"/><col min="2" max="2" width="11.8" customWidth="1"/>' +
+      '<col min="3" max="3" width="20.25" customWidth="1"/><col min="4" max="4" width="9" customWidth="1"/>' +
+      '<col min="5" max="5" width="37.25" customWidth="1"/><col min="6" max="6" width="19.58" customWidth="1"/>' +
+      '<col min="7" max="7" width="14.58" customWidth="1"/><col min="8" max="8" width="19.25" customWidth="1"/>' +
+      '<col min="9" max="9" width="8" customWidth="1"/><col min="10" max="11" width="19.25" customWidth="1"/></cols>' +
+      '<sheetData>' + rows + '</sheetData></worksheet>';
+  }
+
+  var GUIDE_TEXT =
+    '   ※ 반드시 2행부터 데이터를 입력하여야 하며, 1,000라인을 초과하여 작성할 수 없습니다.\n' +
+    '   ※ 파일명은 변경이 가능하나 30자를 초과할 수 없습니다.\n' +
+    '   ※ Sheet명을 수정하는 경우 오류가 발생할 수 있으니 수정하지 마시기 바랍니다.\n' +
+    '   ※ 사용방법\n' +
+    '      1. 찾아보기 버튼을 눌러 작성한 간이지급명세서 엑셀파일을 선택한 후, 업로드합니다.\n' +
+    '      2. 검증하기 버튼을 눌러 형식 및 내용을 검증합니다. 검증결과 확인 버튼으로 결과를 확인합니다.\n' +
+    '      3. 오류가 발생한 경우 오류내역을 확인하여 엑셀파일을 정정한 후 1번부터 다시 수행합니다.\n' +
+    '      4. 오류가 없는 경우 창을 닫고 작성목록에서 내용을 확인합니다.\n' +
+    '      6. 과세자료 작성완료 버튼을 눌러 간이지급명세서를 제출하고 접수증을 출력합니다.\n' +
+    '   ※ 주의사항\n' +
+    '      1. 소득자의 간이지급명세를 입력한 행 이외에는 공란을 유지하여야 합니다.\n' +
+    '      2. 지급액 항목은 음수를 입력할 수 없으며, 지급한 금액이 없는 경우에는 0을 입력합니다.';
+
+  var BIZ_CODES = [[940100,'저술가'],[940200,'화가관련'],[940301,'작곡가'],[940302,'배우'],[940303,'모델'],[940304,'가수'],[940305,'성악가'],[940306,'1인미디어 콘텐츠창작자'],[940500,'연예보조'],[940600,'자문ㆍ고문'],[940901,'바둑기사'],[940902,'꽃꽃이교사'],[940903,'학원강사'],[940904,'직업운동가'],[940905,'봉사료수취자'],[940906,'보험설계'],[940907,'음료배달'],[940908,'방판. 외판'],[940909,'기타자영업'],[940910,'다단계판매'],[940911,'기타모집수당'],[940912,'간병인'],[940913,'대리운전'],[940914,'캐디'],[940915,'목욕관리사'],[940916,'행사도우미'],[940917,'심부름용역'],[940918,'퀵서비스'],[940919,'물품배달'],[851101,'병의원'],[940920,'학습지방문강사'],[940921,'교육교구방문강사'],[940922,'대여제품방문점검원'],[940923,'대출모집인'],[940924,'신용카드회원모집인'],[940925,'방과후강사'],[940926,'소프트웨어프리랜서'],[940927,'관광통역안내사'],[940928,'어린이통학버스기사'],[940929,'중고자동차판매원']];
+
+  var HT_STYLES = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<numFmts count="2"><numFmt numFmtId="164" formatCode="@"/>' +
+    '<numFmt numFmtId="165" formatCode="#,##0_);[Red]\\(#,##0\\)"/></numFmts>' +
+    '<fonts count="1"><font><sz val="11"/><name val="맑은 고딕"/></font></fonts>' +
+    '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
+    '<borders count="1"><border/></borders>' +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+    '<cellXfs count="3">' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+    '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+    '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+    '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+
+  /* ZIP (stored) */
+  var _crc = (function () { var t = []; for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
+  function crc32(b) { var c = 0xFFFFFFFF; for (var i = 0; i < b.length; i++) c = _crc[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function utf8(s) { return new TextEncoder().encode(s); }
+  function u16(a, v) { a.push(v & 0xFF, (v >>> 8) & 0xFF); }
+  function u32(a, v) { a.push(v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF); }
+  function zip(files) {
+    var local = [], central = [], offset = 0;
+    files.forEach(function (f) {
+      var nameB = utf8(f.name), crc = crc32(f.data), sz = f.data.length;
+      var lh = []; u32(lh, 0x04034b50); u16(lh, 20); u16(lh, 0x0800); u16(lh, 0); u16(lh, 0); u16(lh, 0);
+      u32(lh, crc); u32(lh, sz); u32(lh, sz); u16(lh, nameB.length); u16(lh, 0);
+      var lhb = new Uint8Array(lh.length + nameB.length + sz);
+      lhb.set(lh, 0); lhb.set(nameB, lh.length); lhb.set(f.data, lh.length + nameB.length);
+      local.push(lhb);
+      var ch = []; u32(ch, 0x02014b50); u16(ch, 20); u16(ch, 20); u16(ch, 0x0800); u16(ch, 0); u16(ch, 0); u16(ch, 0);
+      u32(ch, crc); u32(ch, sz); u32(ch, sz);
+      u16(ch, nameB.length); u16(ch, 0); u16(ch, 0); u16(ch, 0); u16(ch, 0); u32(ch, 0); u32(ch, offset);
+      var chb = new Uint8Array(ch.length + nameB.length);
+      chb.set(ch, 0); chb.set(nameB, ch.length);
+      central.push(chb); offset += lhb.length;
+    });
+    var cs = central.reduce(function (s, b) { return s + b.length; }, 0);
+    var e = []; u32(e, 0x06054b50); u16(e, 0); u16(e, 0); u16(e, files.length); u16(e, files.length);
+    u32(e, cs); u32(e, offset); u16(e, 0);
+    var out = new Uint8Array(offset + cs + e.length), p = 0;
+    local.forEach(function (b) { out.set(b, p); p += b.length; });
+    central.forEach(function (b) { out.set(b, p); p += b.length; });
+    out.set(new Uint8Array(e), p);
+    return out;
+  }
+
+  /** 한 달치 홈택스 xlsx 생성 (Sheet1 + 제출요령 + 사업소득업종코드) */
+  function buildHometaxXlsx(file, cfg) {
+    cfg = Object.assign({}, HT_DEFAULTS, cfg || {});
+    var s1 = sheetXmlTyped(toSheetCells(file, cfg));
+
+    var guide = [[{ v: GUIDE_TEXT, t: 's', s: 1 }]];
+    var codes = [[{ v: '사업소득업종코드', t: 's', s: 1 }, { v: '사업소득업종명', t: 's', s: 1 }]]
+      .concat(BIZ_CODES.map(function (c) { return [{ v: c[0], t: 'n', s: 0 }, { v: c[1], t: 's', s: 1 }]; }));
+
+    var parts = [
+      { name: '[Content_Types].xml', data: utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+        '<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+        '<Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+        '</Types>') },
+      { name: '_rels/.rels', data: utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+        '</Relationships>') },
+      { name: 'xl/workbook.xml', data: utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        '<sheets><sheet name="' + xmlEsc(cfg.SHEET_NAME) + '" sheetId="1" r:id="rId1"/>' +
+        '<sheet name=" 제출요령" sheetId="2" r:id="rId2"/>' +
+        '<sheet name="사업소득업종코드" sheetId="3" r:id="rId3"/></sheets></workbook>') },
+      { name: 'xl/_rels/workbook.xml.rels', data: utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>' +
+        '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/>' +
+        '<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+        '</Relationships>') },
+      { name: 'xl/styles.xml', data: utf8(HT_STYLES) },
+      { name: 'xl/worksheets/sheet1.xml', data: utf8(s1) },
+      { name: 'xl/worksheets/sheet2.xml', data: utf8(sheetXmlTyped(guide)) },
+      { name: 'xl/worksheets/sheet3.xml', data: utf8(sheetXmlTyped(codes)) }
+    ];
+    return zip(parts);
+  }
+
+  /** 여러 월 파일을 하나의 ZIP으로 */
+  function buildZipOfFiles(files, cfg) {
+    var entries = files.map(function (f) {
+      return { name: f.fileName, data: buildHometaxXlsx(f, cfg) };
+    });
+    return zip(entries);
+  }
+
+  var API = {
+    buildHometaxFiles: buildHometaxFiles, buildHometaxXlsx: buildHometaxXlsx,
+    buildZipOfFiles: buildZipOfFiles, toSheetCells: toSheetCells,
+    foreignFlag: foreignFlag, HT_HEADER: HT_HEADER, HT_DEFAULTS: HT_DEFAULTS
+  };
+  root.HometaxCore = API;
+})(window);
+
 /* ===== UI ===== */
 (function(){
   var $=function(id){return document.getElementById(id);};
-  var lastBuilt=null;
+  var lastBuilt=null, htBuilt=null;
   var comma=function(s){ return String(s).replace(/\B(?=(\d{3})+(?!\d))/g,','); };
 
   var SAMPLE=[
@@ -404,8 +743,95 @@
       $('download').disabled=false;
       $('fname').textContent=fileName();
     }
+    renderHometax(built);
     $('results').classList.add('show');
     $('results').scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+
+  /* ── 홈택스: 월별 파일 렌더링 ── */
+  function renderHometax(built){
+    htBuilt=window.HometaxCore.buildHometaxFiles(built,{});
+    var f=htBuilt.files, w=htBuilt.warnings;
+    $('cnt-erp').textContent=built.rows.length;
+    $('cnt-ht').textContent=f.length?f.length+'개월':'0';
+
+    $('ht-tiles').innerHTML=[
+      ['생성 파일',f.length,''],
+      ['총 신고행',w.total,''],
+      ['합산된 건',w.merged,w.merged?'good':''],
+      ['주민번호 누락',w.noRrn.length,w.noRrn.length?'warn':'good']
+    ].map(function(t){return '<div class="tile '+t[2]+'"><div class="v">'+t[1]+'</div><div class="l">'+t[0]+'</div></div>';}).join('');
+
+    var b='';
+    if(w.noRrn.length) b+=banner('warn','⚠','주민(사업자)등록번호가 없는 대상 <b>'+w.noRrn.length+'명</b>: '+esc(w.noRrn.join(', '))+' — 홈택스 필수값이라 <b>업로드 시 검증 오류</b>가 납니다. 시트에서 번호를 채운 뒤 다시 변환하세요.');
+    if(w.badFlag.length) b+=banner('warn','⚠','주민번호 형식이 13자리가 아니어서 내외국인을 판별하지 못한 대상: '+esc(w.badFlag.join(', '))+' — 내국인(1)으로 넣었으니 확인하세요.');
+    if(w.merged>0) b+=banner('info','ℹ','같은 소득자가 같은 달에 중복된 <b>'+w.merged+'건</b>을 합산해 한 줄로 만들었습니다. (홈택스는 소득자별 1행)');
+    if(w.overflow.length) b+=banner('warn','⚠','1,000행을 초과한 월: <b>'+w.overflow.join(', ')+'</b> — 홈택스 제한이라 해당 월은 파일을 나눠 올려야 합니다.');
+    $('ht-banners').innerHTML=b;
+
+    if(!f.length){
+      $('ht-files').innerHTML='<div class="empty">생성된 월별 파일이 없습니다.</div>';
+      $('ht-zip').disabled=true; $('ht-fname').textContent=''; $('ht-tbody').innerHTML='';
+      return;
+    }
+    $('ht-files').innerHTML=f.map(function(file,i){
+      var buin=file.rows.filter(function(r){return r.kind==='부인';}).length;
+      var sum=file.rows.reduce(function(s,r){return s+r.amt;},0);
+      return '<div class="mfile'+(file.rows.length>1000?' over':'')+'">'+
+        '<div class="ym">'+file.year+'년 '+parseInt(file.month,10)+'월</div>'+
+        '<div class="meta"><span>신고 <b>'+file.rows.length+'</b>행 · 부인 <b>'+buin+'</b> / 해당 <b>'+(file.rows.length-buin)+'</b></span>'+
+        '<span>지급액 합계 <b>'+comma(String(sum))+'</b>원</span></div>'+
+        '<button data-i="'+i+'" class="ht-one">⬇ '+esc(file.fileName)+'</button></div>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('.ht-one'),function(btn){
+      btn.addEventListener('click',function(){ downloadHtOne(parseInt(btn.getAttribute('data-i'),10)); });
+    });
+    $('ht-zip').disabled=false;
+    $('ht-fname').textContent='간이지급명세서_'+f[0].ym+'~'+f[f.length-1].ym+'.zip ('+f.length+'개 파일)';
+
+    $('ht-tbody').innerHTML=f.map(function(file){
+      return file.rows.map(function(r,i){
+        return '<tr class="'+(r.kind==='부인'?'buin':'')+(r.rrn?'':' miss')+'">'+
+          '<td>'+file.year+'-'+file.month+'</td><td class="num">'+(i+1)+'</td>'+
+          '<td><span class="chip '+(r.kind==='부인'?'kb':'kh')+'">'+r.kind+'</span></td>'+
+          '<td class="name">'+esc(r.name)+'</td><td>'+(r.rrn||'<span class="chip no">없음</span>')+'</td>'+
+          '<td>'+r.foreign+'</td><td>940918</td><td class="num">'+comma(String(r.amt))+'</td><td class="num">3</td>'+
+          '<td class="num">'+comma(String(r.intax))+'</td><td class="num">'+comma(String(r.locint))+'</td></tr>';
+      }).join('');
+    }).join('');
+  }
+
+  function saveBytes(bytes,name,mime){
+    var blob=new Blob([bytes],{type:mime});
+    var url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=name;document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(url);a.remove();},1500);
+  }
+  function downloadHtOne(i){
+    if(!htBuilt||!htBuilt.files[i])return;
+    var file=htBuilt.files[i];
+    saveBytes(window.HometaxCore.buildHometaxXlsx(file,{}),file.fileName,
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  }
+  function downloadHtZip(){
+    if(!htBuilt||!htBuilt.files.length)return;
+    var f=htBuilt.files;
+    saveBytes(window.HometaxCore.buildZipOfFiles(f,{}),
+      '간이지급명세서_'+f[0].ym+'~'+f[f.length-1].ym+'.zip','application/zip');
+  }
+  function clearHt(){
+    htBuilt=null;
+    $('ht-tiles').innerHTML=''; $('ht-banners').innerHTML='';
+    $('ht-files').innerHTML=''; $('ht-tbody').innerHTML='';
+    $('ht-zip').disabled=true; $('ht-fname').textContent='';
+    $('cnt-erp').textContent=''; $('cnt-ht').textContent='';
+    switchTab('erp');
+  }
+  function switchTab(which){
+    var erp=which==='erp';
+    $('tab-erp').classList.toggle('active',erp);   $('tab-erp').setAttribute('aria-selected',erp);
+    $('tab-ht').classList.toggle('active',!erp);   $('tab-ht').setAttribute('aria-selected',!erp);
+    $('panel-erp').hidden=!erp; $('panel-ht').hidden=erp;
   }
   function banner(t,ic,msg){return '<div class="banner '+t+'"><span class="ic">'+ic+'</span><span>'+msg+'</span></div>';}
   function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
@@ -441,6 +867,7 @@
       $('tiles').innerHTML=''; $('banners').innerHTML='';
       $('tbody').innerHTML='<tr><td colspan="14"><div class="empty">먼저 구글시트 H열~AC열을 복사해 붙여넣어 주세요.</div></td></tr>';
       $('download').disabled=true; $('fname').textContent='';
+      clearHt();
       $('results').classList.add('show');
       $('input').focus(); return;
     }
@@ -456,7 +883,7 @@
       $('diag').innerHTML='';
       $('banners').innerHTML=banner('warn','⚠','처리 중 오류가 발생했습니다: <b>'+esc(String(err&&err.message||err))+'</b><br>붙여넣은 데이터 2~3줄을 담당자에게 전달해 주세요.');
       $('tiles').innerHTML=''; $('tbody').innerHTML='';
-      $('download').disabled=true;
+      $('download').disabled=true; clearHt();
       $('results').scrollIntoView({behavior:'smooth',block:'nearest'});
     }
   }
@@ -471,6 +898,9 @@
 
   $('go').addEventListener('click',run);
   $('download').addEventListener('click',download);
+  $('ht-zip').addEventListener('click',downloadHtZip);
+  $('tab-erp').addEventListener('click',function(){switchTab('erp');});
+  $('tab-ht').addEventListener('click',function(){switchTab('ht');});
   $('sample').addEventListener('click',function(){$('input').value=SAMPLE;run();});
   $('clear').addEventListener('click',function(){$('input').value='';$('results').classList.remove('show');$('input').focus();});
 })();
