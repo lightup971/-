@@ -1,5 +1,17 @@
-<title>수정신고 업로드파일 생성기 · ERP + 홈택스</title>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>수정신고 업로드파일 생성기 · ERP + 홈택스</title>
+<style>
+  /* 최소 리셋 (아티팩트 환경에서 제공되던 것) */
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0}
+  button,input,select,textarea{font:inherit;color:inherit}
+</style>
+</head>
+<body>
 <style>
   :root{
     --bg:#eaeef4; --surface:#ffffff; --surface-2:#f3f6fb; --surface-3:#eef2f8;
@@ -956,3 +968,6 @@
   $('clear').addEventListener('click',function(){$('input').value='';$('results').classList.remove('show');$('input').focus();});
 })();
 </script>
+
+</body>
+</html>
