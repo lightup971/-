@@ -123,14 +123,15 @@
 <script>
 const EXEC_RANKS = new Set(['CEO','CTO','대표이사','부사장','전무','상무','이사','LV.8']);
 const EXCLUDE_DEPTS = new Set(['장애인고용']);
-// Gmail 작성창은 Gmail에 등록된 기본 서명을 자동으로 붙입니다.
-// 그 경우 아래 본문 서명과 중복되므로, INCLUDE_SIGNATURE=false 로 끄세요.
-const INCLUDE_SIGNATURE = true;
+// [서명 안내]
+//  Gmail '작성' 버튼(compose URL)의 본문은 순수 텍스트만 지원 → 로고/이미지 서명은 불가.
+//  로고가 포함된 Gmail 서명을 쓰신다면 아래를 false로 두고(본문 텍스트 서명 끔),
+//  Gmail 작성창에서 로고 서명을 사용하세요(설정에서 '새 이메일 기본 서명' 지정 또는 펜 아이콘 클릭).
+//  글자만 있는 텍스트 서명을 쓰려면 true로 바꾸고 SIGNATURE에 내용을 넣으세요.
+const INCLUDE_SIGNATURE = false;
 const SIGNATURE =
 `──────────────
 주식회사 부릉(VROONG) People실`;
-// 담당자 명의로 쓰려면 위 SIGNATURE를 예: 아래처럼 수정
-// `──────────────\n홍길동 | People실 (People & Culture)\n주식회사 부릉(VROONG)\n✉ gildong.hong@vroong.com`
 
 const TEMPLATE =
 `안녕하세요, {이름}님.
