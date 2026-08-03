@@ -123,25 +123,38 @@
 <script>
 const EXEC_RANKS = new Set(['CEO','CTO','대표이사','부사장','전무','상무','이사','LV.8']);
 const EXCLUDE_DEPTS = new Set(['장애인고용']);
+// Gmail 작성창은 Gmail에 등록된 기본 서명을 자동으로 붙입니다.
+// 그 경우 아래 본문 서명과 중복되므로, INCLUDE_SIGNATURE=false 로 끄세요.
+const INCLUDE_SIGNATURE = true;
+const SIGNATURE =
+`──────────────
+주식회사 부릉(VROONG) People실`;
+// 담당자 명의로 쓰려면 위 SIGNATURE를 예: 아래처럼 수정
+// `──────────────\n홍길동 | People실 (People & Culture)\n주식회사 부릉(VROONG)\n✉ gildong.hong@vroong.com`
+
 const TEMPLATE =
 `안녕하세요, {이름}님.
-{월}월 생일을 축하드립니다!🎉
-부릉에서는 생일 당월, 더 행복한 한 달 보내실 수 있도록 생일휴가 1일을 드리고 있습니다.
+부릉 피플실입니다.
+
+{월}월 생일을 진심으로 축하드립니다! 🎉
+생일 당월을 더욱 행복하게 보내실 수 있도록,
+부릉에서는 생일휴가 1일을 드리고 있습니다.
 
 📅 생일휴가 1일 부여
-- 신청 및 사용 기한: 생일 당월인 {월}월 말일({말일})까지
-- 말일 이후 자동소멸되며, 당월 내에서만 사용 가능
+- 신청·사용 기한: 생일 당월인 {월}월 말일({말일})까지
+- 말일 이후 자동 소멸되며, 당월 내에서만 사용 가능합니다.
 
 📌 신청 방법
 - 옴니이솔 → 인사관리 → My HR(ESS) → 근태신청(NEW) → [휴가신청서]
-  → 휴가종류 선택: 기타휴가 > 생일휴가 선택
+  → 휴가종류: 기타휴가 > 생일휴가 선택
 
 📢 결재 라인
-- 1차 조직장(결재) - 피플실(합의)
-- 주의사항: 반드시 '피플실(합의)' 지정
+- 1차 조직장(결재) → 피플실(합의)
+- ※ 반드시 '피플실(합의)'을 지정해 주세요.
 
-즐겁고 행복한 한 달 되세요! 🎉`;
-const SUBJECT = '[부릉] {월}월 생일 축하 & 생일휴가 안내 🎂';
+뜻깊고 즐거운 생일 보내시길 바랍니다.
+감사합니다.{서명}`;
+const SUBJECT = '[부릉] {월}월 생일 축하와 생일휴가 안내 🎂';
 
 let rows = [], col = {};
 
@@ -220,7 +233,8 @@ function excludeReason(r) {
 function buildMsg(fullName, month) {
   const y = new Date().getFullYear();
   const last = month + '월 ' + lastDay(y, month) + '일';
-  const rep = s => String(s).replace(/{이름}/g, givenName(fullName)).replace(/{월}/g, month).replace(/{말일}/g, last);
+  const sig = INCLUDE_SIGNATURE ? ('\n\n' + SIGNATURE) : '';
+  const rep = s => String(s).replace(/{이름}/g, givenName(fullName)).replace(/{월}/g, month).replace(/{말일}/g, last).replace(/{서명}/g, sig);
   return { subject: rep(SUBJECT), body: rep(TEMPLATE) };
 }
 function gmailUrl(email, subject, body) {
