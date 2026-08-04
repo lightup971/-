@@ -202,11 +202,15 @@ function bodyToHtml_(body) {
     for (var i = 0; i < headTokens.length; i++) if (t.indexOf(headTokens[i]) === 0) isHead = true;
     if (isHead) return '<div style="margin:16px 0 6px;font-weight:600;">' + esc(line) + '</div>';
     if (t === '') return '<div style="height:8px;"></div>';
-    if (t.indexOf('- ') === 0) return '<div style="padding-left:14px;">&#8226; ' + esc(t.slice(2)) + '</div>';
+    // 글머리표 항목: 접힌 줄이 글머리표가 아니라 뒤 텍스트에 맞춰 들여쓰기됩니다.
+    if (t.indexOf('- ') === 0) return '<div style="padding-left:26px;text-indent:-13px;">&#8226; ' + esc(t.slice(2)) + '</div>';
     return '<div>' + esc(line) + '</div>';
   }).join('');
   html = tokensToHtml_(html);   // 이모지 토큰 → &#숫자; (깨지지 않음)
-  return '<div style="font-family:\'Apple SD Gothic Neo\',\'Malgun Gothic\',sans-serif;font-size:15px;line-height:1.7;color:#1a1a18;max-width:600px;">' + html + '</div>';
+  // word-break:keep-all → 한글이 단어 중간에서 잘리지 않고 띄어쓰기(어절) 단위로 줄바꿈
+  return '<div style="font-family:\'Apple SD Gothic Neo\',\'Malgun Gothic\',sans-serif;' +
+         'font-size:15px;line-height:1.7;color:#1a1a18;max-width:760px;' +
+         'word-break:keep-all;overflow-wrap:break-word;">' + html + '</div>';
 }
 
 // Gmail 설정에 등록된 내 서명(HTML) 가져오기 — Gmail 고급 서비스 필요
