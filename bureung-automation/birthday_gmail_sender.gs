@@ -1,80 +1,96 @@
 /**
- * 생일휴가 안내 – 사원명부(구글 스프레드시트) → Gmail 발송 (명단 시트에서 바로 검토·발송)
+ * 생일휴가 안내 – 사원명부(구글 스프레드시트) → Gmail 발송
  * ---------------------------------------------------------------
- * ① 대상 분류: 선택한 월의 생일자를 명단 시트의 '대상 여부/제외 사유/발송 여부'에 표시
- * ② (발송 여부 체크박스로 최종 확인)
- * ③ 발송: '발송 여부'가 체크(TRUE)된 사람에게만 발송
+ * ① 대상 분류: 선택한 월의 생일자를 '대상 여부/제외 사유/발송 여부'에 표시
+ * ② 나에게 테스트 발송
+ * ③ '발송 여부'가 체크된 사람에게만 발송
  *
- * 이모지는 실행 시점에 코드로 생성 → 복붙해도 깨지지 않습니다.
- * Gmail 웹 서명은 자동발송에 적용되지 않으므로, 로고는 CONFIG.LOGO_FILE_ID로 본문에 삽입합니다.
+ * [이모지] HTML 본문에는 숫자 문자 참조(&#127874;)로 넣어 인코딩 문제로 깨지지 않습니다.
+ * [서명]   Gmail 설정에 등록된 본인 서명(로고 포함)을 Gmail API로 읽어와 그대로 붙입니다.
+ *          → Apps Script 편집기 왼쪽 '서비스(Services) +' → Gmail 선택 → 추가 (1회 설정)
  */
-
-// ===== 이모지(복붙 손상 방지: 코드로 생성) =====
-var EMO = {
-  cake:  String.fromCodePoint(0x1F382),
-  party: String.fromCodePoint(0x1F389),
-  cal:   String.fromCodePoint(0x1F4C5),
-  pin:   String.fromCodePoint(0x1F4CC),
-  mega:  String.fromCodePoint(0x1F4E2)
-};
 
 // ===== 설정 =====
 var CONFIG = {
-  SHEET_NAME: '',                    // 비우면 명단 시트 자동 선택
+  SHEET_NAME: '',
   SENDER_NAME: '부릉 피플실',
-  SUBJECT: '[부릉] {월}월 생일 축하와 생일휴가 안내 ' + EMO.cake,
-  INCLUDE_STATUSES: ['재직'],         // 기본 대상. 휴직 포함하려면 ['재직','휴직']
-  USE_GIVEN_NAME_ONLY: true,         // 인사말에 성 뗀 이름(김민희 → 민희님)
-  RESEND: false,                     // true면 같은 달 이미 보낸 사람도 재발송
+  SUBJECT: '[부릉] {월}월 생일 축하와 생일휴가 안내',
+  EMOJI_IN_SUBJECT: false,           // 제목 이모지: 깨짐 위험이 있어 기본 꺼둠(true로 켜면 케이크 이모지 추가)
+  INCLUDE_STATUSES: ['재직'],
+  USE_GIVEN_NAME_ONLY: true,
+  RESEND: false,
 
   EXCLUDE_RANKS: ['CEO','CTO','대표이사','부사장','전무','상무','이사','LV.8'],
   EXCLUDE_DEPTS: ['장애인고용'],
 
-  // 로고 서명: 구글 드라이브에 로고 이미지를 올리고 파일 ID를 여기에 넣으면 본문에 삽입됩니다.
-  // (드라이브에서 이미지 우클릭 → 링크 생성 → URL의 /d/ 뒤 문자열이 파일 ID)
-  LOGO_FILE_ID: '',
-  LOGO_WIDTH: 200                    // 로고 가로 픽셀
+  USE_GMAIL_SIGNATURE: true,         // Gmail 설정의 내 서명을 그대로 사용(로고 포함)
+  FALLBACK_SIGNATURE_HTML:           // 위 서명을 못 읽을 때만 사용되는 대체 서명
+    '<div style="color:#5f5e5a;">──────────────<br>주식회사 부릉(VROONG) People실</div>'
 };
 
-// 본문 템플릿 ({이름} {월} {말일} {서명} 자동 치환)
+// 이모지 코드포인트 (HTML에서는 &#숫자; 로 출력 → 절대 깨지지 않음)
+var EMO = { cake: 127874, party: 127881, cal: 128197, pin: 128204, mega: 128226 };
+
+// 본문 템플릿 — 이모지는 [[CAKE]] 같은 토큰으로 두고, 발송 시 변환합니다.
 var BODY_TEXT =
 '안녕하세요, {이름}님.\n' +
 '부릉 피플실입니다.\n' +
 '\n' +
-'{월}월 생일을 진심으로 축하드립니다! ' + EMO.party + '\n' +
+'{월}월 생일을 진심으로 축하드립니다! [[PARTY]]\n' +
 '생일 당월을 더욱 행복하게 보내실 수 있도록,\n' +
 '부릉에서는 생일휴가 1일을 드리고 있습니다.\n' +
 '\n' +
-EMO.cal + ' 생일휴가 1일 부여\n' +
+'[[CAL]] 생일휴가 1일 부여\n' +
 '- 신청·사용 기한: 생일 당월인 {월}월 말일({말일})까지\n' +
 '- 말일 이후 자동 소멸되며, 당월 내에서만 사용 가능합니다.\n' +
 '\n' +
-EMO.pin + ' 신청 방법\n' +
+'[[PIN]] 신청 방법\n' +
 '- 옴니이솔 → 인사관리 → My HR(ESS) → 근태신청(NEW) → [휴가신청서]\n' +
 '  → 휴가종류: 기타휴가 > 생일휴가 선택\n' +
 '\n' +
-EMO.mega + ' 결재 라인\n' +
+'[[MEGA]] 결재 라인\n' +
 '- 1차 조직장(결재) → 피플실(합의)\n' +
 '- ※ 반드시 \'피플실(합의)\'을 지정해 주세요.\n' +
 '\n' +
 '뜻깊고 즐거운 생일 보내시길 바랍니다.\n' +
-'감사합니다.{서명}';
-
-// 텍스트 서명(로고를 안 쓰거나, 로고 위 텍스트로 사용)
-var SIGNATURE =
-'\n\n──────────────\n주식회사 부릉(VROONG) People실';
+'감사합니다.';
 
 var LOG_SHEET = '_발송기록';
+
+var TOKENS = [
+  { t: '[[CAKE]]',  c: EMO.cake },
+  { t: '[[PARTY]]', c: EMO.party },
+  { t: '[[CAL]]',   c: EMO.cal },
+  { t: '[[PIN]]',   c: EMO.pin },
+  { t: '[[MEGA]]',  c: EMO.mega }
+];
+
+// 토큰 → HTML 숫자 문자 참조(깨지지 않음)
+function tokensToHtml_(s) {
+  TOKENS.forEach(function (o) { s = s.split(o.t).join('&#' + o.c + ';'); });
+  return s;
+}
+// 토큰 → 실제 이모지 문자(평문 대체본용)
+function tokensToPlain_(s) {
+  TOKENS.forEach(function (o) { s = s.split(o.t).join(String.fromCodePoint(o.c)); });
+  return s;
+}
+// 토큰 제거(제목 등)
+function tokensStrip_(s) {
+  TOKENS.forEach(function (o) { s = s.split(o.t).join(''); });
+  return s.replace(/\s+$/,'');
+}
 
 
 // ===== 메뉴 =====
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('🎂 생일휴가 안내')
+    .createMenu('생일휴가 안내')
     .addItem('① 대상 분류(월 선택)', 'markTargets')
     .addItem('② 나에게 테스트 발송', 'sendTestToMe')
     .addItem('③ 체크된 사람에게 발송', 'sendMarked')
     .addSeparator()
+    .addItem('내 Gmail 서명 확인', 'checkSignature')
     .addItem('발송기록 초기화', 'resetLog')
     .addItem('남은 일일 발송량 확인', 'showQuota')
     .addToUi();
@@ -100,7 +116,8 @@ function findCol_(headers, candidates, exactOnly) {
   var norm = headers.map(function (h) { return String(h).trim(); });
   for (var i = 0; i < candidates.length; i++) { var j = norm.indexOf(candidates[i]); if (j >= 0) return j; }
   if (!exactOnly) for (var k = 0; k < candidates.length; k++) {
-    var idx = norm.findIndex(function (h) { return h.toLowerCase().indexOf(candidates[k].toLowerCase()) >= 0; });
+    var cand = candidates[k];
+    var idx = norm.findIndex(function (h) { return h.toLowerCase().indexOf(cand.toLowerCase()) >= 0; });
     if (idx >= 0) return idx;
   }
   return -1;
@@ -151,53 +168,82 @@ function excludeReason_(row, col) {
   }
   var ranks = [col.rank, col.role, col.title];
   for (var i = 0; i < ranks.length; i++) if (ranks[i] >= 0) {
-    var v = String(row[ranks[i]] || '').trim(); if (v && CONFIG.EXCLUDE_RANKS.indexOf(v) >= 0) return '임원 제외';
+    var v = String(row[ranks[i]] || '').trim();
+    if (v && CONFIG.EXCLUDE_RANKS.indexOf(v) >= 0) return '임원 제외';
   }
-  if (col.dept >= 0) { var d = String(row[col.dept] || '').trim(); if (CONFIG.EXCLUDE_DEPTS.indexOf(d) >= 0) return '부서 제외(' + d + ')'; }
+  if (col.dept >= 0) {
+    var d = String(row[col.dept] || '').trim();
+    if (CONFIG.EXCLUDE_DEPTS.indexOf(d) >= 0) return '부서 제외(' + d + ')';
+  }
   return null;
 }
 
+// 제목/본문(토큰 포함) 생성
 function buildMessage_(fullName, month) {
   var y = new Date().getFullYear();
   var lastLabel = month + '월 ' + lastDayOfMonth_(y, month) + '일';
-  var rep = function (s) {
-    return String(s).replace(/{이름}/g, greetingName_(fullName)).replace(/{월}/g, month)
-                    .replace(/{말일}/g, lastLabel).replace(/{서명}/g, SIGNATURE);
-  };
-  return { subject: rep(CONFIG.SUBJECT), text: rep(BODY_TEXT) };
+  var body = String(BODY_TEXT)
+    .replace(/{이름}/g, greetingName_(fullName))
+    .replace(/{월}/g, month)
+    .replace(/{말일}/g, lastLabel);
+  var subject = String(CONFIG.SUBJECT).replace(/{월}/g, month);
+  if (CONFIG.EMOJI_IN_SUBJECT) subject += ' ' + String.fromCodePoint(EMO.cake);
+  return { subject: subject, body: body };
 }
 
-function textToHtml_(text) {
-  var HDR = [EMO.cal, EMO.pin, EMO.mega];
+// 본문(토큰) → HTML
+function bodyToHtml_(body) {
   var esc = function (s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
-  var body = String(text).split('\n').map(function (line) {
+  var headTokens = ['[[CAL]]','[[PIN]]','[[MEGA]]'];
+  var html = String(body).split('\n').map(function (line) {
     var t = line.trim();
-    for (var i = 0; i < HDR.length; i++) if (t.indexOf(HDR[i]) === 0)
-      return '<div style="margin:16px 0 6px;font-weight:600;">' + esc(line) + '</div>';
+    var isHead = false;
+    for (var i = 0; i < headTokens.length; i++) if (t.indexOf(headTokens[i]) === 0) isHead = true;
+    if (isHead) return '<div style="margin:16px 0 6px;font-weight:600;">' + esc(line) + '</div>';
     if (t === '') return '<div style="height:8px;"></div>';
-    if (t.indexOf('- ') === 0) return '<div style="padding-left:14px;">• ' + esc(t.slice(2)) + '</div>';
+    if (t.indexOf('- ') === 0) return '<div style="padding-left:14px;">&#8226; ' + esc(t.slice(2)) + '</div>';
     return '<div>' + esc(line) + '</div>';
   }).join('');
-  return '<div style="font-family:\'Apple SD Gothic Neo\',\'Malgun Gothic\',sans-serif;font-size:15px;line-height:1.7;color:#1a1a18;max-width:560px;">' + body + '</div>';
+  html = tokensToHtml_(html);   // 이모지 토큰 → &#숫자; (깨지지 않음)
+  return '<div style="font-family:\'Apple SD Gothic Neo\',\'Malgun Gothic\',sans-serif;font-size:15px;line-height:1.7;color:#1a1a18;max-width:600px;">' + html + '</div>';
 }
 
-// 로고 이미지 blob (없으면 null)
-function logoBlob_() {
-  if (!CONFIG.LOGO_FILE_ID) return null;
-  try { return DriveApp.getFileById(CONFIG.LOGO_FILE_ID).getBlob(); } catch (e) { return null; }
-}
-
-// 실제 Gmail 발송(로고 있으면 본문에 삽입)
-function sendMail_(email, subject, text) {
-  var opts = { name: CONFIG.SENDER_NAME };
-  var html = textToHtml_(text);
-  var blob = logoBlob_();
-  if (blob) {
-    html += '<div style="margin-top:14px;"><img src="cid:logo" style="max-width:' + CONFIG.LOGO_WIDTH + 'px;height:auto;"></div>';
-    opts.inlineImages = { logo: blob };
+// Gmail 설정에 등록된 내 서명(HTML) 가져오기 — Gmail 고급 서비스 필요
+function gmailSignatureHtml_() {
+  if (!CONFIG.USE_GMAIL_SIGNATURE) return '';
+  try {
+    var me = Session.getActiveUser().getEmail();
+    var res = Gmail.Users.Settings.SendAs.list('me');
+    var list = (res && res.sendAs) ? res.sendAs : [];
+    var i;
+    for (i = 0; i < list.length; i++) {
+      if (list[i].sendAsEmail === me && list[i].signature) return list[i].signature;
+    }
+    for (i = 0; i < list.length; i++) {
+      if (list[i].isDefault && list[i].signature) return list[i].signature;
+    }
+    for (i = 0; i < list.length; i++) {
+      if (list[i].signature) return list[i].signature;
+    }
+  } catch (e) {
+    // Gmail 고급 서비스 미설정 등 → 대체 서명 사용
   }
-  opts.htmlBody = html;
-  GmailApp.sendEmail(email, subject, text, opts);
+  return '';
+}
+
+function signatureHtml_() {
+  var sig = gmailSignatureHtml_();
+  if (sig) return '<br><br>' + sig;
+  return CONFIG.FALLBACK_SIGNATURE_HTML ? '<br><br>' + CONFIG.FALLBACK_SIGNATURE_HTML : '';
+}
+
+// 실제 발송
+function sendMail_(email, subject, body) {
+  var html = bodyToHtml_(body) + signatureHtml_();
+  GmailApp.sendEmail(email, subject, tokensToPlain_(body), {
+    htmlBody: html,
+    name: CONFIG.SENDER_NAME
+  });
 }
 
 
@@ -206,8 +252,9 @@ function markTargets() {
   var ui = SpreadsheetApp.getUi();
   var p = parse_();
   var col = p.col, values = p.values, sheet = p.sheet;
-  if (col.targetYN < 0 || col.reason < 0 || col.sendFlag < 0)
-    { ui.alert("명단 시트에 '대상 여부', '제외 사유', '발송 여부' 컬럼이 필요합니다."); return; }
+  if (col.targetYN < 0 || col.reason < 0 || col.sendFlag < 0) {
+    ui.alert("명단 시트에 '대상 여부', '제외 사유', '발송 여부' 컬럼이 필요합니다."); return;
+  }
 
   var nowMonth = new Date().getMonth() + 1;
   var resp = ui.prompt('대상 분류', '대상 월(1~12)을 입력하세요.\n기본값: ' + nowMonth + '월', ui.ButtonSet.OK_CANCEL);
@@ -237,7 +284,7 @@ function markTargets() {
   sfRange.setValues(sf);
 
   ui.alert(month + '월 분류 완료\n- 대상 ' + cT + '명(발송 여부 체크됨) · 제외 ' + cE + '명 · 이메일없음 ' + cN + '명\n\n' +
-    "'발송 여부' 열을 확인/수정한 뒤, 메뉴 ③으로 발송하세요.\n(제외된 사람도 체크하면 발송됩니다.)");
+    "'발송 여부' 열을 확인/수정한 뒤, 메뉴 ③으로 발송하세요.");
 }
 
 
@@ -263,7 +310,7 @@ function sendMarked() {
     var month = rowMonth_(row, col) || (new Date().getMonth() + 1);
     var key = empno + '|' + year + ('0' + month).slice(-2);
     if (sentKeys[key]) continue;
-    targets.push({ rowNum: r + 1, email: email, name: name, month: month, key: key });
+    targets.push({ rowNum: r + 1, email: email, name: name, empno: empno, month: month, key: key });
   }
 
   if (!targets.length) { ui.alert('발송할 대상이 없습니다. (발송 여부 체크 / 유효 이메일 / 미발송 조건 확인)'); return; }
@@ -279,8 +326,8 @@ function sendMarked() {
   targets.forEach(function (t) {
     try {
       var m = buildMessage_(t.name, t.month);
-      sendMail_(t.email, m.subject, m.text);
-      log.appendRow([t.key, t.empno || '', t.name, t.email, stamp]);
+      sendMail_(t.email, m.subject, m.body);
+      log.appendRow([t.key, t.empno, t.name, t.email, stamp]);
       if (col.targetYN >= 0) sheet.getRange(t.rowNum, col.targetYN + 1).setValue('발송완료');
       sheet.getRange(t.rowNum, col.sendFlag + 1).setValue(false);
       ok++;
@@ -301,8 +348,21 @@ function sendTestToMe() {
   if (!me) { ui.alert('본인 이메일을 확인할 수 없습니다.'); return; }
   var month = new Date().getMonth() + 1;
   var m = buildMessage_('홍길동', month);
-  sendMail_(me, '[테스트] ' + m.subject, m.text);
-  ui.alert('테스트 메일을 ' + me + ' 로 보냈습니다. (예시 이름: 홍길동)');
+  sendMail_(me, '[테스트] ' + m.subject, m.body);
+  var sigOn = gmailSignatureHtml_() ? '내 Gmail 서명 적용됨' : '대체 서명 사용(내 Gmail 서명 못 읽음)';
+  ui.alert('테스트 메일을 ' + me + ' 로 보냈습니다.\n(예시 이름: 홍길동 · ' + sigOn + ')');
+}
+
+function checkSignature() {
+  var sig = gmailSignatureHtml_();
+  if (sig) {
+    SpreadsheetApp.getUi().alert('내 Gmail 서명을 정상적으로 읽었습니다.\n메일 하단에 이 서명이 그대로 들어갑니다.\n\n(길이 ' + sig.length + '자)');
+  } else {
+    SpreadsheetApp.getUi().alert(
+      '내 Gmail 서명을 읽지 못했습니다.\n\n' +
+      'Apps Script 편집기 왼쪽 [서비스(Services)] 옆 + 클릭 → 목록에서 Gmail 선택 → 추가 후\n' +
+      '다시 시도하세요. (그전까지는 대체 서명이 사용됩니다.)');
+  }
 }
 
 function getLog_() {
