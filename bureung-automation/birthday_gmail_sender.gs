@@ -125,11 +125,29 @@ function findCol_(headers, candidates, exactOnly) {
   return -1;
 }
 
+// 머리글이 1행이 아닐 수도 있으므로(제목/메모 행이 위에 있는 경우) 자동으로 찾습니다.
+function detectHeaderRow_(values) {
+  var known = ['사원번호','사번','성명','이름','비용센터','부서','직급','직책','직위',
+               '재직여부','생년월일','이메일','메일','생일월','대상 여부','제외 사유','발송 여부'];
+  var bestRow = 0, bestScore = -1;
+  var limit = Math.min(values.length, 20);
+  for (var r = 0; r < limit; r++) {
+    var row = values[r], score = 0;
+    for (var c = 0; c < row.length; c++) {
+      var v = String(row[c] || '').trim();
+      if (v && known.indexOf(v) >= 0) score++;
+    }
+    if (score > bestScore) { bestScore = score; bestRow = r; }
+  }
+  return bestRow;
+}
+
 function parse_() {
   var sheet = getRosterSheet_();
   var values = sheet.getDataRange().getValues();
-  if (values.length < 2) throw new Error('명단 데이터가 없습니다. 1행 머리글 아래에 명단을 넣으세요.');
-  var h = values[0];
+  if (values.length < 2) throw new Error('명단 데이터가 없습니다. 머리글 아래에 명단을 넣으세요.');
+  var headerRow = detectHeaderRow_(values);
+  var h = values[headerRow];
   var col = {
     empno:  findCol_(h, ['사원번호','사번']),
     name:   findCol_(h, ['성명','이름','name']),
@@ -145,9 +163,12 @@ function parse_() {
     reason:   findCol_(h, ['제외 사유','제외사유'], true),
     sendFlag: findCol_(h, ['발송 여부','발송여부'], true)
   };
-  if (col.email < 0) throw new Error("'이메일' 컬럼을 찾을 수 없습니다.");
+  if (col.email < 0) {
+    throw new Error("'이메일' 컬럼을 찾을 수 없습니다.\n인식된 머리글 행: " + (headerRow + 1) + '행\n' +
+      '내용: ' + h.map(function (x) { return String(x || ''); }).filter(String).join(' | '));
+  }
   if (col.birth < 0 && col.bmonth < 0) throw new Error("'생년월일' 또는 '생일월' 컬럼이 필요합니다.");
-  return { sheet: sheet, values: values, col: col };
+  return { sheet: sheet, values: values, col: col, headerRow: headerRow };
 }
 
 function lastDayOfMonth_(y, m) { return new Date(y, m, 0).getDate(); }
@@ -157,8 +178,11 @@ function monthFromBirth_(v) {
   var m = String(v).match(/^\s*\d{4}[-./](\d{1,2})/); if (m) return parseInt(m[1], 10);
   m = String(v).match(/^\s*(\d{1,2})\s*$/); return m ? parseInt(m[1], 10) : null;
 }
+// 생년월일에서 먼저 계산하고, 비어 있으면 '생일월' 값으로 대체
 function rowMonth_(row, col) {
-  return col.birth >= 0 ? monthFromBirth_(row[col.birth]) : monthFromBirth_(row[col.bmonth]);
+  var m = col.birth >= 0 ? monthFromBirth_(row[col.birth]) : null;
+  if (m == null && col.bmonth >= 0) m = monthFromBirth_(row[col.bmonth]);
+  return m;
 }
 function isValidEmail_(e) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(e || '').trim()); }
 function greetingName_(n) { n = String(n || '').trim(); return CONFIG.USE_GIVEN_NAME_ONLY && n.length > 1 ? n.slice(1) : n; }
@@ -269,10 +293,12 @@ function markTargets() {
   var month = input ? parseInt(input, 10) : nowMonth;
   if (!(month >= 1 && month <= 12)) { ui.alert('1~12 사이로 입력하세요.'); return; }
 
-  var n = values.length - 1;
+  var first = p.headerRow + 1;          // 데이터 시작(0-based)
+  var n = values.length - first;
+  if (n < 1) { ui.alert('명단 데이터가 없습니다.'); return; }
   var yn = [], rs = [], sf = [];
   var cT = 0, cE = 0, cN = 0;
-  for (var r = 1; r < values.length; r++) {
+  for (var r = first; r < values.length; r++) {
     var row = values[r];
     if (col.name >= 0 && !String(row[col.name] || '').trim()) { yn.push(['']); rs.push(['']); sf.push([false]); continue; }
     if (rowMonth_(row, col) !== month) { yn.push(['']); rs.push(['']); sf.push([false]); continue; }
@@ -283,9 +309,9 @@ function markTargets() {
     else { yn.push(['대상']); rs.push(['']); sf.push([true]); cT++; }
   }
 
-  sheet.getRange(2, col.targetYN + 1, n, 1).setValues(yn);
-  sheet.getRange(2, col.reason + 1, n, 1).setValues(rs);
-  var sfRange = sheet.getRange(2, col.sendFlag + 1, n, 1);
+  sheet.getRange(first + 1, col.targetYN + 1, n, 1).setValues(yn);
+  sheet.getRange(first + 1, col.reason + 1, n, 1).setValues(rs);
+  var sfRange = sheet.getRange(first + 1, col.sendFlag + 1, n, 1);
   sfRange.insertCheckboxes();
   sfRange.setValues(sf);
 
@@ -304,7 +330,7 @@ function sendMarked() {
   var year = new Date().getFullYear();
   var sentKeys = CONFIG.RESEND ? {} : loadSentKeys_();
   var targets = [];
-  for (var r = 1; r < values.length; r++) {
+  for (var r = p.headerRow + 1; r < values.length; r++) {
     var row = values[r];
     var flag = row[col.sendFlag];
     var checked = (flag === true) || (String(flag).toUpperCase() === 'TRUE');
