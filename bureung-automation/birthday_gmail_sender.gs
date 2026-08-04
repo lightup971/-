@@ -239,26 +239,37 @@ function bodyToHtml_(body) {
 }
 
 // Gmail 설정에 등록된 내 서명(HTML) 가져오기 — Gmail 고급 서비스 필요
-function gmailSignatureHtml_() {
-  if (!CONFIG.USE_GMAIL_SIGNATURE) return '';
+// 서명 조회 결과를 이유와 함께 반환(진단용)
+function gmailSignatureResult_() {
+  if (!CONFIG.USE_GMAIL_SIGNATURE) return { ok: false, why: 'CONFIG.USE_GMAIL_SIGNATURE 가 false 입니다.' };
+  // 고급 서비스가 추가되지 않았으면 Gmail 이름 자체가 없습니다(참조 시 오류 → typeof로 확인)
+  if (typeof Gmail === 'undefined') {
+    return { ok: false, why: 'Gmail 고급 서비스가 추가되지 않았습니다.\n편집기 왼쪽 [서비스] 옆 + → Gmail → 추가' };
+  }
   try {
     var me = Session.getActiveUser().getEmail();
     var res = Gmail.Users.Settings.SendAs.list('me');
     var list = (res && res.sendAs) ? res.sendAs : [];
-    var i;
-    for (i = 0; i < list.length; i++) {
-      if (list[i].sendAsEmail === me && list[i].signature) return list[i].signature;
+    if (!list.length) return { ok: false, why: '보내는 주소(SendAs) 정보를 가져오지 못했습니다.' };
+    var i, pick = '';
+    for (i = 0; i < list.length; i++) if (list[i].sendAsEmail === me && list[i].signature) { pick = list[i].signature; break; }
+    if (!pick) for (i = 0; i < list.length; i++) if (list[i].isDefault && list[i].signature) { pick = list[i].signature; break; }
+    if (!pick) for (i = 0; i < list.length; i++) if (list[i].signature) { pick = list[i].signature; break; }
+    if (!pick) {
+      var addrs = list.map(function (x) { return x.sendAsEmail; }).join(', ');
+      return { ok: false, why: 'Gmail에서 서명을 찾지 못했습니다.\n조회된 주소: ' + addrs +
+                               '\n(서명이 다른 계정/별칭에 저장되어 있을 수 있습니다.)' };
     }
-    for (i = 0; i < list.length; i++) {
-      if (list[i].isDefault && list[i].signature) return list[i].signature;
-    }
-    for (i = 0; i < list.length; i++) {
-      if (list[i].signature) return list[i].signature;
-    }
+    return { ok: true, signature: pick };
   } catch (e) {
-    // Gmail 고급 서비스 미설정 등 → 대체 서명 사용
+    return { ok: false, why: '오류: ' + e.message +
+      '\n\n권한 재승인이 필요할 수 있습니다. 편집기에서 아무 함수나 한 번 실행해 승인하세요.' };
   }
-  return '';
+}
+
+function gmailSignatureHtml_() {
+  var r = gmailSignatureResult_();
+  return r.ok ? r.signature : '';
 }
 
 function signatureHtml_() {
@@ -386,14 +397,16 @@ function sendTestToMe() {
 }
 
 function checkSignature() {
-  var sig = gmailSignatureHtml_();
-  if (sig) {
-    SpreadsheetApp.getUi().alert('내 Gmail 서명을 정상적으로 읽었습니다.\n메일 하단에 이 서명이 그대로 들어갑니다.\n\n(길이 ' + sig.length + '자)');
-  } else {
+  var r = gmailSignatureResult_();
+  if (r.ok) {
+    var plain = String(r.signature).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     SpreadsheetApp.getUi().alert(
-      '내 Gmail 서명을 읽지 못했습니다.\n\n' +
-      'Apps Script 편집기 왼쪽 [서비스(Services)] 옆 + 클릭 → 목록에서 Gmail 선택 → 추가 후\n' +
-      '다시 시도하세요. (그전까지는 대체 서명이 사용됩니다.)');
+      '내 Gmail 서명을 정상적으로 읽었습니다.\n메일 하단에 이 서명이 그대로 들어갑니다.\n\n' +
+      '길이: ' + r.signature.length + '자\n이미지 포함: ' + (/<img/i.test(r.signature) ? '예(로고 포함)' : '아니오') +
+      '\n\n미리보기: ' + plain.slice(0, 200));
+  } else {
+    SpreadsheetApp.getUi().alert('내 Gmail 서명을 읽지 못했습니다.\n\n' + r.why +
+      '\n\n(해결 전까지는 대체 서명이 사용됩니다.)');
   }
 }
 
