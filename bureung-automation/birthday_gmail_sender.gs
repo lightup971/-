@@ -14,7 +14,7 @@ var LOG_SHEET = '_발송기록';
 // [설정] 시트가 없을 때 사용되는 기본값 (설정 시트가 있으면 그쪽이 우선)
 var DEFAULTS = {
   senderName: '부릉 피플실',
-  subject: '[피플실] {연도}년 {월}월 생일휴가 부여 및 사용 안내(~{말일짧게}까지★)',
+  subject: '[피플실] {연도}년 {월}월 생일휴가 부여 및 사용 안내(~{말일짧게}까지)',
   statuses: '재직',
   excludeRanks: 'CEO,CTO,대표이사,부사장,전무,상무,이사,LV.8',
   excludeDepts: '장애인고용',
