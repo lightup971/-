@@ -14,7 +14,7 @@ var LOG_SHEET = '_발송기록';
 // [설정] 시트가 없을 때 사용되는 기본값 (설정 시트가 있으면 그쪽이 우선)
 var DEFAULTS = {
   senderName: '부릉 피플실',
-  subject: '[피플실] {월}월 생일 축하 및 생일휴가 안내',
+  subject: '[피플실] {연도}년 {월}월 생일휴가 부여 및 사용 안내(~{말일짧게}까지★)',
   statuses: '재직',
   excludeRanks: 'CEO,CTO,대표이사,부사장,전무,상무,이사,LV.8',
   excludeDepts: '장애인고용',
@@ -96,7 +96,7 @@ function onOpen() {
 function settingsRows_() {
   return [
     ['발신자 이름',        DEFAULTS.senderName,   '받는 사람에게 보이는 이름'],
-    ['메일 제목',          DEFAULTS.subject,      '{월} 은 생일 당월로 자동 치환'],
+    ['메일 제목',          DEFAULTS.subject,      '{연도} {월} {말일짧게}(예: 8/31) 자동 치환'],
     ['발송 대상 재직상태', DEFAULTS.statuses,     '쉼표로 여러 개 가능 (예: 재직,휴직)'],
     ['제외 직급/직책',     DEFAULTS.excludeRanks, '이 직급·직책이면 발송 대상에서 제외 (쉼표 구분)'],
     ['제외 부서',          DEFAULTS.excludeDepts, '이 부서면 발송 대상에서 제외 (쉼표 구분)'],
@@ -270,11 +270,13 @@ function excludeReason_(row, col, cfg) {
 // ===== 메일 =====
 function buildMessage_(fullName, month, cfg) {
   var y = new Date().getFullYear();
-  var lastLabel = month + '월 ' + lastDayOfMonth_(y, month) + '일';
+  var last = lastDayOfMonth_(y, month);
   var rep = function (s) {
     return String(s).replace(/{이름}/g, greetingName_(fullName, cfg))
+                    .replace(/{연도}/g, y)
                     .replace(/{월}/g, month)
-                    .replace(/{말일}/g, lastLabel);
+                    .replace(/{말일짧게}/g, month + '/' + last)   // 8/31
+                    .replace(/{말일}/g, month + '월 ' + last + '일'); // 8월 31일
   };
   return { subject: rep(cfg.subject), body: rep(cfg.body) };
 }
