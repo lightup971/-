@@ -187,7 +187,8 @@ function findCol_(headers, candidates, exactOnly) {
 // 머리글이 1행이 아닐 수 있으므로(제목/메모 행이 위에 있는 경우) 자동으로 찾습니다.
 function detectHeaderRow_(values) {
   var known = ['사원번호','사번','성명','이름','비용센터','부서','직급','직책','직위',
-               '재직여부','생년월일','이메일','메일','생일월','대상 여부','제외 사유','발송 여부'];
+               '재직여부','생년월일','이메일','메일','생일월',
+               '대상 여부','제외 사유','발송하기','발송 여부','상태'];
   var bestRow = 0, bestScore = -1;
   var limit = Math.min(values.length, 20);
   for (var r = 0; r < limit; r++) {
@@ -219,8 +220,9 @@ function parse_() {
     role:   findCol_(h, ['직책'], true),
     title:  findCol_(h, ['직위'], true),
     targetYN: findCol_(h, ['대상 여부','대상여부'], true),
-    reason:   findCol_(h, ['제외 사유','제외사유'], true),
-    sendFlag: findCol_(h, ['발송 여부','발송여부'], true)
+    reason:   findCol_(h, ['제외 사유','제외사유'], true),          // 없으면 사유를 '대상 여부'에 함께 표기
+    sendFlag: findCol_(h, ['발송하기','발송 여부','발송여부'], true),
+    result:   findCol_(h, ['상태','발송상태','발송 상태'], true)     // 발송 결과 기록
   };
   if (col.email < 0) {
     throw new Error("'이메일' 컬럼을 찾을 수 없습니다.\n인식된 머리글 행: " + (headerRow + 1) + '행\n' +
@@ -336,8 +338,9 @@ function markTargets() {
   var cfg = readSettings_();
   var p = parse_();
   var col = p.col, values = p.values, sheet = p.sheet;
-  if (col.targetYN < 0 || col.reason < 0 || col.sendFlag < 0) {
-    ui.alert("명단 시트에 '대상 여부', '제외 사유', '발송 여부' 컬럼이 필요합니다."); return;
+  if (col.targetYN < 0 || col.sendFlag < 0) {
+    ui.alert("명단 시트에 '대상 여부' 와 '발송하기' 컬럼이 필요합니다.\n" +
+             "(인식된 머리글 행: " + (p.headerRow + 1) + '행)'); return;
   }
 
   var nowMonth = new Date().getMonth() + 1;
@@ -358,19 +361,25 @@ function markTargets() {
     if (rowMonth_(row, col) !== month) { yn.push(['']); rs.push(['']); sf.push([false]); continue; }
     var reason = excludeReason_(row, col, cfg);
     var email = String(row[col.email] || '').trim();
-    if (reason) { yn.push(['제외']); rs.push([reason]); sf.push([false]); cE++; }
-    else if (!isValidEmail_(email)) { yn.push(['이메일없음']); rs.push(['']); sf.push([false]); cN++; }
-    else { yn.push(['대상']); rs.push(['']); sf.push([true]); cT++; }
+    if (!reason && !isValidEmail_(email)) reason = '이메일 없음';
+    if (reason) {
+      // '제외 사유' 열이 없으면 사유를 '대상 여부'에 함께 적습니다.
+      yn.push([col.reason >= 0 ? '비대상' : '비대상(' + reason + ')']);
+      rs.push([reason]); sf.push([false]);
+      if (reason === '이메일 없음') cN++; else cE++;
+    } else {
+      yn.push(['대상']); rs.push(['']); sf.push([true]); cT++;
+    }
   }
 
   sheet.getRange(first + 1, col.targetYN + 1, n, 1).setValues(yn);
-  sheet.getRange(first + 1, col.reason + 1, n, 1).setValues(rs);
+  if (col.reason >= 0) sheet.getRange(first + 1, col.reason + 1, n, 1).setValues(rs);
   var sfRange = sheet.getRange(first + 1, col.sendFlag + 1, n, 1);
   sfRange.insertCheckboxes();
   sfRange.setValues(sf);
 
-  ui.alert(month + '월 분류 완료\n- 대상 ' + cT + '명(발송 여부 체크됨) · 제외 ' + cE + '명 · 이메일없음 ' + cN + '명\n\n' +
-    "'발송 여부' 열을 확인/수정한 뒤, 메뉴 ③으로 발송하세요.");
+  ui.alert(month + '월 분류 완료\n- 대상 ' + cT + '명(발송하기 체크됨) · 제외 ' + cE + '명 · 이메일없음 ' + cN + '명\n\n' +
+    "'발송하기' 열을 확인/수정한 뒤, 메뉴 ③으로 발송하세요.");
 }
 
 
@@ -380,7 +389,7 @@ function sendMarked() {
   var cfg = readSettings_();
   var p = parse_();
   var col = p.col, values = p.values, sheet = p.sheet;
-  if (col.sendFlag < 0) { ui.alert("'발송 여부' 컬럼을 찾을 수 없습니다. 먼저 ①을 실행하세요."); return; }
+  if (col.sendFlag < 0) { ui.alert("'발송하기' 컬럼을 찾을 수 없습니다. 먼저 ①을 실행하세요."); return; }
 
   var year = new Date().getFullYear();
   var sentKeys = loadSentKeys_();
@@ -405,14 +414,14 @@ function sendMarked() {
 
   if (!targets.length) {
     var why = '발송할 대상이 없습니다.\n\n';
-    why += "· '발송 여부'가 체크된 행: " + stat.checked + '명\n';
+    why += "· '발송하기'가 체크된 행: " + stat.checked + '명\n';
     if (stat.noEmail) why += '· 이메일이 없거나 형식이 잘못되어 제외: ' + stat.noEmail + '명\n';
     if (stat.already) {
       why += '· 이번 달에 이미 발송되어 제외(중복 방지): ' + stat.already + '명\n';
       why += '   → ' + alreadyNames.slice(0, 10).join(', ') + (alreadyNames.length > 10 ? ' 외' : '') + '\n';
       why += "\n같은 사람에게 다시 보내려면 메뉴 [발송기록 초기화]를 실행한 뒤 다시 시도하세요.";
     }
-    if (!stat.checked) why += "\n먼저 [① 대상 분류]를 실행하거나, '발송 여부' 열을 직접 체크하세요.";
+    if (!stat.checked) why += "\n먼저 [① 대상 분류]를 실행하거나, '발송하기' 열을 직접 체크하세요.";
     ui.alert(why);
     return;
   }
@@ -433,10 +442,15 @@ function sendMarked() {
       var m = buildMessage_(t.name, t.month, cfg);
       sendMail_(t.email, m.subject, m.body, cfg);
       log.appendRow([t.key, t.empno, t.name, t.email, stamp]);
-      if (col.targetYN >= 0) sheet.getRange(t.rowNum, col.targetYN + 1).setValue('발송완료');
+      // 결과는 '상태' 열에 기록(없으면 '대상 여부' 열에)
+      var outCol = col.result >= 0 ? col.result : col.targetYN;
+      if (outCol >= 0) sheet.getRange(t.rowNum, outCol + 1).setValue('발송완료');
       sheet.getRange(t.rowNum, col.sendFlag + 1).setValue(false);
       ok++;
-    } catch (e) { fail++; fails.push(t.name + ': ' + e.message); }
+    } catch (e) {
+      fail++; fails.push(t.name + ': ' + e.message);
+      if (col.result >= 0) sheet.getRange(t.rowNum, col.result + 1).setValue('발송실패');
+    }
     Utilities.sleep(300);
   });
 
@@ -512,10 +526,10 @@ function buildGuideSheet_(ss) {
     [''],
     [H + ' 매월 사용 순서 (5분)'],
     ['1. 상단 메뉴 [생일휴가 안내] → [① 대상 분류(월 선택)] → 이번 달 입력'],
-    ['   → 명단의 "대상 여부/제외 사유/발송 여부" 열이 자동으로 채워집니다.'],
-    ['2. "발송 여부" 체크박스를 눈으로 확인합니다. (빼고 싶으면 체크 해제, 추가하려면 체크)'],
+    ['   → 명단의 "대상 여부 / 발송하기" 열이 자동으로 채워집니다.'],
+    ['2. "발송하기" 체크박스를 눈으로 확인합니다. (빼고 싶으면 체크 해제, 추가하려면 체크)'],
     ['3. [② 나에게 테스트 발송] → 내 메일함에서 문구·서명을 확인합니다.'],
-    ['4. [③ 체크된 사람에게 발송] → 인원 확인 후 발송. 발송된 행은 "발송완료"로 바뀝니다.'],
+    ['4. [③ 체크된 사람에게 발송] → 인원 확인 후 발송. 발송된 행의 "상태"가 "발송완료"로 바뀝니다.'],
     [''],
     [H + ' 문구·규칙을 바꾸고 싶을 때'],
     ['[설정] 시트에서 수정하세요. 코드(Apps Script)는 열 필요 없습니다.'],
@@ -528,7 +542,7 @@ function buildGuideSheet_(ss) {
     ['ERP(옴니이솔) 사원명부를 새로 내려받아 명단 시트에 머리글째 붙여넣으면 됩니다.'],
     ['이메일·생년월일이 그 파일에 들어 있으므로, 사람별로 따로 찾을 필요가 없습니다.'],
     ['필요한 열: 성명 / 생년월일(또는 생일월) / 이메일 / 재직여부 / 직급 / 직책 / 비용센터(부서) / 사원번호'],
-    ['"대상 여부", "제외 사유", "발송 여부" 열은 비워두면 ①번 메뉴가 채웁니다.'],
+    ['"대상 여부", "발송하기", "상태" 열은 비워두면 ①번 메뉴가 채웁니다.'],
     [''],
     [H + ' ★ 담당자가 바뀔 때 반드시 할 일 (중요)'],
     ['이 자동화는 "실행하는 사람의 구글 계정"으로 메일을 보냅니다.'],
