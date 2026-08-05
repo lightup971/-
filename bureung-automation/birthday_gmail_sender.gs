@@ -10,6 +10,7 @@
 var SETTINGS_SHEET = '설정';
 var GUIDE_SHEET = '사용법';
 var LOG_SHEET = '_발송기록';
+var ERP_SHEET = 'ERP최신본';   // ERP 사원명부 export를 붙여넣는 시트
 
 // [설정] 시트가 없을 때 사용되는 기본값 (설정 시트가 있으면 그쪽이 우선)
 var DEFAULTS = {
@@ -79,6 +80,7 @@ function startsWithEmoji_(s) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('생일휴가 안내')
+    .addItem('⓪ 명단 대조(ERP 최신본 반영)', 'syncRoster')
     .addItem('① 대상 분류(월 선택)', 'markTargets')
     .addItem('② 나에게 테스트 발송', 'sendTestToMe')
     .addItem('③ 체크된 사람에게 발송', 'sendMarked')
@@ -339,6 +341,146 @@ function sendMail_(email, subject, body, cfg) {
 }
 
 
+// ===== ⓪ 명단 대조 (ERP 최신본 반영) =====
+// 매월 발송 전, ERP 사원명부 최신본과 대조해
+//  (1) 휴직/퇴직자를 찾아 재직여부를 갱신하고 '비대상' 처리
+//  (2) 신규 입사자를 명단 아래에 추가
+function syncRoster() {
+  var ui = SpreadsheetApp.getUi();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var erpSheet = ss.getSheetByName(ERP_SHEET);
+  if (!erpSheet) {
+    ui.alert("'" + ERP_SHEET + "' 시트가 없습니다.\n\n" +
+      '1) 시트 하단 + 를 눌러 새 시트를 만들고 이름을 "' + ERP_SHEET + '" 으로 바꾸세요.\n' +
+      '2) ERP(옴니이솔) 사원명부 export를 머리글째 그대로 붙여넣으세요.\n' +
+      '3) 다시 이 메뉴를 실행하세요.');
+    return;
+  }
+
+  var p = parse_();                       // 명단
+  var col = p.col, values = p.values, sheet = p.sheet;
+  var header = values[p.headerRow];
+
+  var eVals = erpSheet.getDataRange().getValues();
+  if (eVals.length < 2) { ui.alert("'" + ERP_SHEET + "' 시트에 데이터가 없습니다."); return; }
+  var eHeaderRow = detectHeaderRow_(eVals);
+  var eHeader = eVals[eHeaderRow];
+  var eCol = {
+    empno:  findCol_(eHeader, ['사원번호','사번']),
+    name:   findCol_(eHeader, ['성명','이름']),
+    status: findCol_(eHeader, ['재직여부','재직상태'])
+  };
+  if (eCol.empno < 0) { ui.alert("'" + ERP_SHEET + "' 시트에서 '사원번호' 컬럼을 찾을 수 없습니다."); return; }
+
+  // ERP 인덱스
+  var erp = {}, erpOrder = [];
+  for (var er = eHeaderRow + 1; er < eVals.length; er++) {
+    var no = String(eVals[er][eCol.empno] || '').trim();
+    if (!no) continue;
+    erp[no] = eVals[er];
+    erpOrder.push(no);
+  }
+
+  // 명단 인덱스 + 변경 감지
+  var inRoster = {};
+  var statusChanged = [], gone = [], noEmpno = [];
+  for (var r = p.headerRow + 1; r < values.length; r++) {
+    var row = values[r];
+    var name = col.name >= 0 ? String(row[col.name] || '').trim() : '';
+    var no = col.empno >= 0 ? String(row[col.empno] || '').trim() : '';
+    if (!name && !no) continue;
+    if (!no) { noEmpno.push({ rowNum: r + 1, name: name }); continue; }
+    inRoster[no] = true;
+    var cur = col.status >= 0 ? String(row[col.status] || '').trim() : '';
+    if (erp[no]) {
+      var neu = eCol.status >= 0 ? String(erp[no][eCol.status] || '').trim() : '';
+      if (neu && cur !== neu) statusChanged.push({ rowNum: r + 1, name: name, from: cur, to: neu });
+    } else {
+      if (cur !== '퇴사') gone.push({ rowNum: r + 1, name: name, from: cur });
+    }
+  }
+
+  // 신규 입사자
+  var added = [];
+  for (var k = 0; k < erpOrder.length; k++) {
+    if (!inRoster[erpOrder[k]]) added.push(erpOrder[k]);
+  }
+
+  if (!statusChanged.length && !gone.length && !added.length) {
+    ui.alert('명단 대조 완료\n\n변경 사항이 없습니다. (ERP 최신본과 일치)' +
+      (noEmpno.length ? '\n\n※ 사원번호가 없어 대조에서 제외한 행: ' + noEmpno.length + '개' : ''));
+    return;
+  }
+
+  var brief = function (arr, fmt) {
+    return arr.slice(0, 8).map(fmt).join(', ') + (arr.length > 8 ? ' 외 ' + (arr.length - 8) + '명' : '');
+  };
+  var msg = '명단 대조 결과\n\n';
+  if (statusChanged.length) msg += '· 재직상태 변경 ' + statusChanged.length + '명\n   ' +
+    brief(statusChanged, function (x) { return x.name + '(' + (x.from || '-') + '→' + x.to + ')'; }) + '\n';
+  if (gone.length) msg += '· ERP에 없음(퇴사 추정) ' + gone.length + '명\n   ' +
+    brief(gone, function (x) { return x.name; }) + '\n';
+  if (added.length) msg += '· 신규 입사자 ' + added.length + '명\n   ' +
+    brief(added, function (no) { return String(erp[no][eCol.name] || no); }) + '\n';
+  if (noEmpno.length) msg += '· 사원번호 없음(대조 제외) ' + noEmpno.length + '개\n';
+  msg += '\n반영할까요?\n' +
+         '- 재직상태를 ERP 값으로 갱신\n' +
+         '- 퇴사 추정자는 재직여부를 "퇴사"로 표시(행은 삭제하지 않음)\n' +
+         '- 신규 입사자를 명단 맨 아래에 추가';
+
+  if (ui.alert('명단 대조', msg, ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
+
+  // (1) 재직상태 갱신
+  statusChanged.forEach(function (x) {
+    if (col.status >= 0) sheet.getRange(x.rowNum, col.status + 1).setValue(x.to);
+    if (col.targetYN >= 0 && x.to !== '재직') sheet.getRange(x.rowNum, col.targetYN + 1).setValue('비대상');
+    if (col.sendFlag >= 0 && x.to !== '재직') sheet.getRange(x.rowNum, col.sendFlag + 1).setValue(false);
+  });
+  // (2) 퇴사 추정자 표시
+  gone.forEach(function (x) {
+    if (col.status >= 0) sheet.getRange(x.rowNum, col.status + 1).setValue('퇴사');
+    if (col.targetYN >= 0) sheet.getRange(x.rowNum, col.targetYN + 1).setValue('비대상');
+    if (col.sendFlag >= 0) sheet.getRange(x.rowNum, col.sendFlag + 1).setValue(false);
+  });
+
+  // (3) 신규 입사자 추가 — 명단 머리글과 같은 이름의 ERP 열을 그대로 옮겨 담습니다.
+  if (added.length) {
+    var lastNo = 0;
+    var noCol = findCol_(header, ['No','no','번호'], true);
+    if (noCol >= 0) {
+      for (var q = values.length - 1; q > p.headerRow; q--) {
+        var v = parseInt(values[q][noCol], 10);
+        if (!isNaN(v)) { lastNo = v; break; }
+      }
+    }
+    var newRows = added.map(function (no, i) {
+      var src = erp[no];
+      var out = [];
+      for (var c = 0; c < header.length; c++) {
+        var hName = String(header[c] || '').trim();
+        if (noCol >= 0 && c === noCol) { out.push(lastNo + i + 1); continue; }
+        if (c === col.bmonth) {
+          var bi = findCol_(eHeader, ['생년월일','생일','출생']);
+          out.push(bi >= 0 ? (monthFromBirth_(src[bi]) || '') : '');
+          continue;
+        }
+        if (c === col.targetYN || c === col.reason || c === col.sendFlag || c === col.result) { out.push(''); continue; }
+        var ei = hName ? findCol_(eHeader, [hName], true) : -1;
+        out.push(ei >= 0 ? src[ei] : '');
+      }
+      return out;
+    });
+    sheet.getRange(values.length + 1, 1, newRows.length, header.length).setValues(newRows);
+  }
+
+  ui.alert('반영 완료\n\n' +
+    '· 재직상태 갱신 ' + statusChanged.length + '명\n' +
+    '· 퇴사 표시 ' + gone.length + '명\n' +
+    '· 신규 추가 ' + added.length + '명\n\n' +
+    '이어서 [① 대상 분류]를 실행하세요.');
+}
+
+
 // ===== ① 대상 분류 =====
 function markTargets() {
   var ui = SpreadsheetApp.getUi();
@@ -531,12 +673,23 @@ function buildGuideSheet_(ss) {
     ['매월 생일자를 명단에서 자동으로 골라, 생일휴가 안내 메일을 Gmail로 보냅니다.'],
     ['임원·제외 부서·퇴사/휴직자는 자동으로 걸러지고, 같은 달 중복발송도 자동으로 막습니다.'],
     [''],
-    [H + ' 매월 사용 순서 (5분)'],
-    ['1. 상단 메뉴 [생일휴가 안내] → [① 대상 분류(월 선택)] → 이번 달 입력'],
+    [H + ' 매월 말, 다음 달 안내 전에 하는 일 (순서대로)'],
+    ['0. [ERP최신본] 시트에 ERP(옴니이솔) 사원명부 최신 export를 머리글째 붙여넣습니다.'],
+    ['   → 메뉴 [⓪ 명단 대조(ERP 최신본 반영)] 실행'],
+    ['   → 휴직/퇴직자는 재직여부가 갱신되고 자동으로 "비대상" 처리됩니다.'],
+    ['   → 신규 입사자는 명단 맨 아래에 자동 추가됩니다(생일월도 자동 계산).'],
+    ['   ※ 사원번호로 대조합니다. ERP에 없는 사람은 "퇴사"로 표시하되 행은 지우지 않습니다.'],
+    ['   ※ 인사발령 등록 내역에 변동이 있었다면 이 단계에서 반드시 확인하세요.'],
+    ['1. [① 대상 분류(월 선택)] → 안내할 달 입력'],
     ['   → 명단의 "대상 여부 / 발송하기" 열이 자동으로 채워집니다.'],
     ['2. "발송하기" 체크박스를 눈으로 확인합니다. (빼고 싶으면 체크 해제, 추가하려면 체크)'],
     ['3. [② 나에게 테스트 발송] → 내 메일함에서 문구·서명을 확인합니다.'],
     ['4. [③ 체크된 사람에게 발송] → 인원 확인 후 발송. 발송된 행의 "상태"가 "발송완료"로 바뀝니다.'],
+    [''],
+    [H + ' 왜 매월 대조(⓪번)가 필요한가'],
+    ['생일휴가는 재직자에게만 부여됩니다. 퇴직·휴직자에게 안내가 나가면 안 되고,'],
+    ['신규 입사자의 생일이 다음 달이면 빠뜨리면 안 됩니다.'],
+    ['⓪번 메뉴가 이 두 가지를 자동으로 잡아주므로, 매월 발송 전 반드시 먼저 실행하세요.'],
     [''],
     [H + ' 문구·규칙을 바꾸고 싶을 때'],
     ['[설정] 시트에서 수정하세요. 코드(Apps Script)는 열 필요 없습니다.'],
