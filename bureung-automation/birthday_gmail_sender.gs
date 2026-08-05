@@ -383,26 +383,45 @@ function sendMarked() {
   var year = new Date().getFullYear();
   var sentKeys = loadSentKeys_();
   var targets = [];
+  var stat = { checked: 0, noEmail: 0, already: 0 };
+  var alreadyNames = [];
   for (var r = p.headerRow + 1; r < values.length; r++) {
     var row = values[r];
     var flag = row[col.sendFlag];
     if (!(flag === true || String(flag).toUpperCase() === 'TRUE')) continue;
+    stat.checked++;
     var email = String(row[col.email] || '').trim();
-    if (!isValidEmail_(email)) continue;
     var name = col.name >= 0 ? String(row[col.name]).trim() : '';
+    if (!isValidEmail_(email)) { stat.noEmail++; continue; }
     var empno = col.empno >= 0 ? String(row[col.empno] || '').trim() : email;
+    if (!empno) empno = email;
     var month = rowMonth_(row, col) || (new Date().getMonth() + 1);
     var key = empno + '|' + year + ('0' + month).slice(-2);
-    if (sentKeys[key]) continue;
+    if (sentKeys[key]) { stat.already++; alreadyNames.push(name || email); continue; }
     targets.push({ rowNum: r + 1, email: email, name: name, empno: empno, month: month, key: key });
   }
 
-  if (!targets.length) { ui.alert('발송할 대상이 없습니다. (발송 여부 체크 / 유효 이메일 / 미발송 조건 확인)'); return; }
+  if (!targets.length) {
+    var why = '발송할 대상이 없습니다.\n\n';
+    why += "· '발송 여부'가 체크된 행: " + stat.checked + '명\n';
+    if (stat.noEmail) why += '· 이메일이 없거나 형식이 잘못되어 제외: ' + stat.noEmail + '명\n';
+    if (stat.already) {
+      why += '· 이번 달에 이미 발송되어 제외(중복 방지): ' + stat.already + '명\n';
+      why += '   → ' + alreadyNames.slice(0, 10).join(', ') + (alreadyNames.length > 10 ? ' 외' : '') + '\n';
+      why += "\n같은 사람에게 다시 보내려면 메뉴 [발송기록 초기화]를 실행한 뒤 다시 시도하세요.";
+    }
+    if (!stat.checked) why += "\n먼저 [① 대상 분류]를 실행하거나, '발송 여부' 열을 직접 체크하세요.";
+    ui.alert(why);
+    return;
+  }
   var quota = MailApp.getRemainingDailyQuota();
   if (quota < targets.length) { ui.alert('일일 한도 부족: 대상 ' + targets.length + ' / 남은 ' + quota + '통'); return; }
 
-  if (ui.alert('발송 확인', '체크된 ' + targets.length + '명에게 생일휴가 안내를 발송합니다.\n계속할까요?',
-      ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
+  var confirmMsg = targets.length + '명에게 생일휴가 안내를 발송합니다.\n';
+  if (stat.already) confirmMsg += '(이미 발송된 ' + stat.already + '명은 제외됩니다)\n';
+  if (stat.noEmail) confirmMsg += '(이메일 없는 ' + stat.noEmail + '명은 제외됩니다)\n';
+  confirmMsg += '\n계속할까요?';
+  if (ui.alert('발송 확인', confirmMsg, ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
 
   var log = getLog_();
   var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
