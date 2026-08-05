@@ -327,8 +327,15 @@ function gmailSignatureResult_() {
 
 function sendMail_(email, subject, body, cfg) {
   var sig = gmailSignatureResult_();
-  var html = bodyToHtml_(body) + (sig.ok ? '<br><br>' + sig.signature : '');
-  GmailApp.sendEmail(email, subject, body, { htmlBody: html, name: cfg.senderName });
+  var html = bodyToHtml_(body);
+  var text = body;
+  if (sig.ok) {
+    // Gmail이 수동 작성 시 넣는 것과 동일한 서명 구분선(--)
+    html += '<div style="margin-top:22px;">--</div>' +
+            '<div style="margin-top:10px;">' + sig.signature + '</div>';
+    text += '\n\n--\n';
+  }
+  GmailApp.sendEmail(email, subject, text, { htmlBody: html, name: cfg.senderName });
 }
 
 
