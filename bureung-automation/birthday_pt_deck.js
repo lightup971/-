@@ -53,8 +53,11 @@ s.addText('생일휴가 안내 업무 자동화', { x: M, y: 2.5, w: 9.6, h: 1.0
   bold: true, color: WHITE, margin: 0, valign: 'middle' });
 s.addText('구글 스프레드시트 + Apps Script 기반 · 별도 비용 없음', {
   x: M, y: 3.55, w: 9.6, h: 0.45, fontFace: F, fontSize: 17, color: 'B8CFC4', margin: 0 });
-s.addShape(pres.ShapeType.rect, { x: M, y: 4.35, w: 1.1, h: 0.045, fill: { color: GREEN } });
-s.addText('피플실  |  2026. 08', { x: M, y: 4.65, w: 6, h: 0.35, fontFace: F, fontSize: 14,
+s.addShape(pres.ShapeType.roundRect, { x: M, y: 4.25, w: 3.15, h: 0.5, rectRadius: 0.1,
+  fill: { color: GREEN } });
+s.addText('2026년 8월 운영 완료', { x: M, y: 4.25, w: 3.15, h: 0.5, fontFace: F, fontSize: 14,
+  bold: true, color: '06301F', align: 'center', valign: 'middle', margin: 0 });
+s.addText('피플실  |  2026. 08', { x: M, y: 5.05, w: 6, h: 0.35, fontFace: F, fontSize: 14,
   color: '8FA89B', margin: 0 });
 s.addNotes('생일휴가 안내는 매월 반복되는 정형 업무입니다. 이번 발표는 이 업무를 자동화한 과정과, 담당자가 바뀌어도 계속 쓸 수 있게 만든 구조를 공유하는 자리입니다.');
 
@@ -218,7 +221,41 @@ foot(s, '제외 18명(임원 · 휴직 · 제외 부서) · 이메일 미등록 
 s.addNotes('월별 편차가 큽니다. 3월은 5명, 10월은 22명입니다. 사람이 매번 세는 것보다 자동 집계가 안정적인 이유입니다.');
 
 // =========================================================
-// 7. 지속가능성
+// 7. 8월 운영 결과 (실증)
+// =========================================================
+s = pres.addSlide();
+titleLight(s, '2026년 8월 운영 결과', '실제 발송까지 완료했습니다');
+const res = [['15', '8월 안내 대상자'], ['15', '발송 완료'], ['0', '누락 · 오발송']];
+const rw = (CW - 0.45 * 2) / 3;
+res.forEach(function (r, i) {
+  const x = M + i * (rw + 0.45);
+  const isZero = (i === 2);
+  card(s, x, 1.95, rw, 1.85, i === 1 ? DARK : TINT);
+  s.addText(r[0], { x: x + 0.3, y: 2.2, w: rw - 0.6, h: 0.95, fontFace: F, fontSize: 54,
+    bold: true, color: i === 1 ? GREEN : (isZero ? GREEN : INK), margin: 0, valign: 'middle' });
+  s.addText(r[1], { x: x + 0.3, y: 3.18, w: rw - 0.6, h: 0.35, fontFace: F, fontSize: 14,
+    color: i === 1 ? 'B8CFC4' : MUTED, margin: 0 });
+});
+s.addText('이번 운영에서 확인된 것', { x: M, y: 4.1, w: CW, h: 0.38, fontFace: F, fontSize: 16,
+  bold: true, color: INK, margin: 0 });
+const proofs = [
+  '휴직자 1명이 규칙에 따라 자동으로 비대상 처리되어, 잘못된 발송이 발생하지 않았습니다.',
+  '이메일 주소를 개별로 조회하지 않고, 명단에 있는 정보만으로 15명 전원에게 발송했습니다.',
+  '발송 이력이 자동 기록되어, 같은 달 중복 발송이 시스템 차원에서 차단되는 것을 확인했습니다.'
+];
+proofs.forEach(function (p, i) {
+  const y = 4.58 + i * 0.62;
+  s.addShape(pres.ShapeType.ellipse, { x: M + 0.05, y: y + 0.05, w: 0.34, h: 0.34, fill: { color: GREEN } });
+  s.addText('v', { x: M + 0.05, y: y + 0.05, w: 0.34, h: 0.34, fontFace: F, fontSize: 13, bold: true,
+    color: WHITE, align: 'center', valign: 'middle', margin: 0 });
+  s.addText(p, { x: M + 0.62, y: y, w: CW - 0.7, h: 0.45, fontFace: F, fontSize: 14,
+    color: INK, margin: 0, valign: 'middle' });
+});
+foot(s, '9월 이후 안내도 동일한 절차로 진행 예정');
+s.addNotes('가장 중요한 슬라이드입니다. 아이디어 단계가 아니라 8월 안내를 실제로 이 도구로 발송했고, 대상자 15명 전원에게 누락 없이 나갔습니다. 휴직자 한 분은 규칙에 따라 자동으로 제외됐습니다.');
+
+// =========================================================
+// 8. 지속가능성
 // =========================================================
 s = pres.addSlide();
 titleLight(s, '지속가능한 운영 구조', '후임자가 코드를 몰라도 계속 쓸 수 있도록 설계했습니다');
@@ -270,8 +307,8 @@ s.addText('확장 가능성', { x: M + 0.45, y: 5.0, w: 3.0, h: 0.35, fontFace: 
   bold: true, color: GREEN, margin: 0 });
 s.addText('동일한 구조를 경조사 안내, 근속 축하, 교육 이수 리마인드 등 피플실의 다른 정기 안내 업무에 그대로 적용할 수 있습니다.',
   { x: M + 0.45, y: 5.38, w: CW - 0.9, h: 0.8, fontFace: F, fontSize: 15, color: INK, margin: 0 });
-foot(s, '※ 작업 시간은 대상자 13~22명 기준 추정치');
-s.addNotes('시간 절감도 크지만, 더 중요한 것은 담당자가 바뀌어도 같은 품질이 유지된다는 점입니다.');
+foot(s, '※ 작업 시간은 대상자 13~22명 기준 추정치 · 대상자 선별과 발송 정확도는 8월 운영 결과(15명 전원 발송, 누락 0)로 확인');
+s.addNotes('시간 절감도 크지만, 더 중요한 것은 담당자가 바뀌어도 같은 품질이 유지된다는 점입니다. 정확도는 8월 운영에서 이미 확인했습니다.');
 
 // =========================================================
 // 9. 향후 계획 (dark)
