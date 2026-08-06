@@ -2,12 +2,12 @@
  * 생일휴가 안내 – 사원명부(구글 스프레드시트) → Gmail 발송
  * ===============================================================
  * 유지보수 원칙: 담당자가 바뀌어도 '스프레드시트만' 보면 되도록 설계.
- *   - 메일 제목/본문, 제외 규칙, 발신자명 → [설정] 시트에서 수정 (코드 수정 불필요)
+ *   - 메일 제목/본문, 제외 규칙, 발신자명 → [기본설정] 시트에서 수정 (코드 수정 불필요)
  *   - 사용법/인수인계 절차          → [사용법] 시트에 내장
- *   - 처음 열었다면 메뉴의 '설정·사용법 시트 만들기'를 먼저 실행하세요.
+ *   - 처음 열었다면 메뉴의 '기본설정·사용법 시트 만들기'를 먼저 실행하세요.
  */
 
-var SETTINGS_SHEET = '설정';
+var SETTINGS_SHEET = '기본설정';
 var GUIDE_SHEET = '사용법';
 var LOG_SHEET = '_발송기록';
 var ERP_SHEET = 'ERP최신본';   // ERP 사원명부 export를 붙여넣는 시트
@@ -22,13 +22,14 @@ var TRACK = [
   { key: 'email',  label: '이메일',   cands: ['이메일','메일'] }
 ];
 
-// [설정] 시트가 없을 때 사용되는 기본값 (설정 시트가 있으면 그쪽이 우선)
+// [기본설정] 시트가 없을 때 사용되는 기본값 (기본설정 시트가 있으면 그쪽이 우선)
 var DEFAULTS = {
   senderName: '부릉 피플실',
   subject: '[피플실] {연도}년 {월}월 생일휴가 부여 및 사용 안내(~{말일짧게}까지)',
   statuses: '재직',
   excludeRanks: 'CEO,CTO,대표이사,부사장,전무,상무,이사,LV.8',
   excludeDepts: '장애인고용',
+  excludeNames: '김예동,고부릉1,휴가',   // ERP 테스트 계정 등 발송 제외 대상
   nameStyle: '성 제외',
   body: [
     '안녕하세요, {이름}님.',
@@ -95,7 +96,7 @@ function onOpen() {
     .addItem('② 나에게 테스트 발송', 'sendTestToMe')
     .addItem('③ 체크된 사람에게 발송', 'sendMarked')
     .addSeparator()
-    .addItem('설정·사용법 시트 만들기', 'setupSheets')
+    .addItem('기본설정·사용법 시트 만들기', 'setupSheets')
     .addItem('내 Gmail 서명 확인', 'checkSignature')
     .addSeparator()
     .addItem('발송기록 초기화', 'resetLog')
@@ -112,6 +113,7 @@ function settingsRows_() {
     ['발송 대상 재직상태', DEFAULTS.statuses,     '쉼표로 여러 개 가능 (예: 재직,휴직)'],
     ['제외 직급/직책',     DEFAULTS.excludeRanks, '이 직급·직책이면 발송 대상에서 제외 (쉼표 구분)'],
     ['제외 부서',          DEFAULTS.excludeDepts, '이 부서면 발송 대상에서 제외 (쉼표 구분)'],
+    ['제외 대상자',        DEFAULTS.excludeNames, 'ERP 테스트 계정 등 발송하지 않을 이름 (쉼표 구분)'],
     ['이름 표기',          DEFAULTS.nameStyle,    "'성 제외' = 김민희→민희님 / '전체 이름' = 김민희님"],
     ['메일 본문',          tokensToPlain_(DEFAULTS.body),
      '{이름} {월} {말일} 자동 치환. 이모지로 시작하는 줄은 소제목으로 굵게 표시됩니다.']
@@ -129,7 +131,7 @@ function setupSheets() {
     ss.deleteSheet(ss.getSheetByName(SETTINGS_SHEET));
   }
   var sh = ss.insertSheet(SETTINGS_SHEET);
-  sh.getRange(1, 1).setValue('생일휴가 안내 – 설정  (이 시트에서 문구와 규칙을 수정하세요. 코드는 건드릴 필요 없습니다.)');
+  sh.getRange(1, 1).setValue('생일휴가 안내 – 기본설정  (이 시트에서 문구와 규칙을 수정하세요. 코드는 건드릴 필요 없습니다.)');
   sh.getRange(1, 1, 1, 3).merge().setFontWeight('bold').setBackground('#fff3cd').setWrap(true);
   sh.getRange(2, 1, 1, 3).setValues([['항목', '값', '설명']]).setFontWeight('bold').setBackground('#eeeeee');
   var rows = settingsRows_();
@@ -141,7 +143,7 @@ function setupSheets() {
 
   buildGuideSheet_(ss);
   ui.alert("'" + SETTINGS_SHEET + "' 와 '" + GUIDE_SHEET + "' 시트를 만들었습니다.\n\n" +
-           '앞으로 문구·규칙 수정은 [설정] 시트에서 하시면 됩니다.');
+           '앞으로 문구·규칙 수정은 [' + SETTINGS_SHEET + '] 시트에서 하시면 됩니다.');
 }
 
 function readSettings_() {
@@ -168,6 +170,7 @@ function readSettings_() {
     statuses:     list(get('발송 대상 재직상태', DEFAULTS.statuses)),
     excludeRanks: list(get('제외 직급/직책', DEFAULTS.excludeRanks)),
     excludeDepts: list(get('제외 부서', DEFAULTS.excludeDepts)),
+    excludeNames: list(get('제외 대상자', DEFAULTS.excludeNames)),
     givenNameOnly: get('이름 표기', DEFAULTS.nameStyle).indexOf('전체') < 0,
     body:         tokensToPlain_(get('메일 본문', DEFAULTS.body))
   };
@@ -263,7 +266,19 @@ function greetingName_(n, cfg) {
   return (cfg.givenNameOnly && n.length > 1) ? n.slice(1) : n;
 }
 
+// 이름이 제외 대상(테스트 계정 등)인지 — 정확히 같거나 그 이름으로 시작하면 제외
+function isExcludedName_(name, cfg) {
+  var n = String(name || '').trim();
+  if (!n) return false;
+  for (var i = 0; i < cfg.excludeNames.length; i++) {
+    var t = cfg.excludeNames[i];
+    if (t && (n === t || n.indexOf(t) === 0)) return true;
+  }
+  return false;
+}
+
 function excludeReason_(row, col, cfg) {
+  if (col.name >= 0 && isExcludedName_(row[col.name], cfg)) return '테스트 계정';
   if (col.status >= 0) {
     var st = String(row[col.status] || '').trim();
     if (st && cfg.statuses.indexOf(st) < 0) return st || '재직 아님';
@@ -423,12 +438,19 @@ function syncRoster() {
   }
 
   // 신규 입사자
-  var added = [];
-  for (var k = 0; k < erpOrder.length; k++) if (!inRoster[erpOrder[k]]) added.push(erpOrder[k]);
+  var added = [], skippedTest = [];
+  for (var k = 0; k < erpOrder.length; k++) {
+    var cand = erpOrder[k];
+    if (inRoster[cand]) continue;
+    var candName = eCol.name >= 0 ? String(erp[cand][eCol.name] || '').trim() : '';
+    if (isExcludedName_(candName, cfg)) { skippedTest.push(candName || cand); continue; }   // ERP 테스트 계정
+    added.push(cand);
+  }
 
   if (!changes.length && !gone.length && !added.length) {
     stampUpdated_(sheet);
     ui.alert('명단 대조 완료\n\n변경 사항이 없습니다. (ERP 최신본과 일치)' +
+      (skippedTest.length ? '\n\n※ 테스트 계정으로 추가하지 않음: ' + skippedTest.join(', ') : '') +
       (noEmpno.length ? '\n\n※ 사원번호가 없어 대조에서 제외한 행: ' + noEmpno.length + '개' : '') +
       '\n\n명단 최종 수정일을 오늘로 갱신했습니다.');
     return;
@@ -450,6 +472,8 @@ function syncRoster() {
     brief(gone, function (x) { return x.name; }) + '\n';
   if (added.length) msg += '· 신규 입사자 ' + added.length + '명\n   ' +
     brief(added, function (no) { return String(erp[no][eCol.name] || no); }) + '\n';
+  if (skippedTest.length) msg += '· 테스트 계정으로 추가하지 않음 ' + skippedTest.length + '명\n   ' +
+    skippedTest.join(', ') + '\n';
   if (noEmpno.length) msg += '· 사원번호 없음(대조 제외) ' + noEmpno.length + '개\n';
   msg += '\n반영할까요?\n' +
          '- 변경된 값을 ERP 기준으로 갱신\n' +
@@ -770,11 +794,11 @@ function buildGuideSheet_(ss) {
     ['[연 1회 · 연초]  전 재직자에게 생일휴가 1일을 ERP에서 일괄 부여합니다.'],
     ['   옴니이솔 > 근태일수등록 > 사원별일수등록 에서 근태코드 "생일휴가" 선택'],
     ['   시작일 = 생일월 1일 / 종료일 = 생일월 말일 / 부여일수 = 1'],
-    ['   ※ 이때 임원은 부여 대상에서 제외해야 합니다. (2026년에는 누락되어 이후 개별 삭제함)'],
+    ['   ※ 이때 임원은 부여 대상에서 제외해야 합니다.'],
     ['[매월 말]  다음 달 생일자를 확정하고 안내를 발송합니다. 아래 순서를 따르세요.'],
     [''],
     [H + ' 매월 작업 순서'],
-    ['1. ERP에서 사원명부(재직자)를 export 합니다.'],
+    ['1. ERP에서 사원명부(재직자, 휴직자)를 export 합니다.'],
     ['2. [ERP최신본] 시트에 머리글째 그대로 붙여넣습니다.'],
     ['   ※ 열 순서를 맞출 필요 없습니다. 항목 이름으로 자동 인식합니다.'],
     ['   ※ 반드시 전체 명부를 받으세요. 일부만 받으면 재직자가 퇴사로 표시됩니다.'],
@@ -791,15 +815,16 @@ function buildGuideSheet_(ss) {
     ['   ※ [대조결과] 시트를 보면 누구를 조정해야 하는지 바로 알 수 있습니다.'],
     ['5. 메뉴 [① 대상 분류(월 선택)] → 안내할 달 입력'],
     ['   → "대상 여부"와 "발송하기" 열이 자동으로 채워집니다.'],
-    ['6. 대상자 목록을 상급자에게 전달해 확인받습니다.'],
+    ['6. 대상자 목록을 사수님께 전달해 확인받습니다.'],
     ['7. 메뉴 [② 나에게 테스트 발송] → 문구와 서명을 확인합니다.'],
     ['8. 메뉴 [③ 체크된 사람에게 발송] → 발송된 행의 "상태"가 "발송완료"로 바뀝니다.'],
     [''],
     [H + ' 문구 · 규칙을 바꾸고 싶을 때'],
-    ['[설정] 시트에서 수정하세요. 코드(Apps Script)는 열 필요 없습니다.'],
+    ['[' + SETTINGS_SHEET + '] 시트에서 수정하세요. 코드(Apps Script)는 열 필요 없습니다.'],
     ['  - 메일 제목 / 본문 : {이름} {월} {말일} {연도} {말일짧게} 가 자동으로 채워집니다.'],
     ['  - 제외 직급/직책 : 여기 적힌 직급·직책은 발송 대상에서 자동 제외됩니다(임원 판별 기준).'],
     ['  - 제외 부서 / 발송 대상 재직상태 / 이름 표기'],
+    ['  - 제외 대상자 : ERP 테스트 계정 등 발송하지 않을 이름(대조 시 명단에도 추가되지 않습니다)'],
     ['  ※ 임원 판별 기준은 인사 규정과 일치하는지 주기적으로 확인이 필요합니다.'],
     [''],
     [H + ' ★ 담당자가 바뀔 때 반드시 할 일'],
@@ -822,7 +847,7 @@ function buildGuideSheet_(ss) {
     ['· 숨겨진 "_발송기록" 시트는 중복발송 방지용입니다. 지우지 마세요.'],
     ['· [대조결과] 시트는 과거 대조 이력이 계속 쌓입니다. 지우지 않아도 됩니다.'],
     [''],
-    ['최초 작성일: ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd')]
+    ['최종 작성일: ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd')]
   ];
 
   sh.getRange(1, 1, lines.length, 1).setValues(lines);
