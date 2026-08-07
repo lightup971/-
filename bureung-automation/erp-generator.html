@@ -132,6 +132,7 @@
   tbody td.name{font-family:var(--sans)}
   tbody td.num{text-align:right}
   tbody tr:last-child td{border-bottom:none}
+  tbody tr.cont td{color:var(--ink-faint)}
   tbody tr.buin td{color:var(--ink-faint)}
   tbody tr.buin td.name{color:var(--ink-soft)}
   tbody tr.miss{background:var(--warn-bg)}
@@ -142,6 +143,35 @@
   .chip.no{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-bd)}
   .chip.kb{background:var(--surface-3);color:var(--ink-soft);border:1px solid var(--border-strong)}
   .chip.kh{background:var(--accent-soft);color:var(--accent);border:1px solid var(--border)}
+
+  .modes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px}
+  @media(max-width:600px){.modes{grid-template-columns:1fr}}
+  .mode{display:flex;align-items:center;gap:11px;text-align:left;background:var(--surface);
+    border:1px solid var(--border);border-radius:12px;padding:13px 15px;cursor:pointer;box-shadow:var(--shadow)}
+  .mode:hover{border-color:var(--border-strong)}
+  .mode.active{border-color:var(--accent);background:var(--accent-soft)}
+  .mode .num{flex:none;width:26px;height:26px;border-radius:8px;background:var(--surface-3);color:var(--ink-soft);
+    display:grid;place-items:center;font-size:13px;font-weight:700}
+  .mode.active .num{background:var(--accent);color:var(--accent-ink)}
+  .mode b{display:block;font-size:14px;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+  .mode em{display:block;font-style:normal;font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .mode.active b{color:var(--accent)}
+
+  .bookbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .bookstat{font-size:13.5px;font-weight:600;color:var(--ink);background:var(--surface-2);
+    border:1px solid var(--border);border-radius:9px;padding:8px 13px;font-variant-numeric:tabular-nums}
+  .note{font-size:12px;color:var(--ink-faint);margin:9px 0 0;line-height:1.6}
+  input[type=number]{font-family:var(--mono);font-size:13.5px;color:var(--ink);background:var(--surface);
+    border:1px solid var(--border-strong);border-radius:8px;padding:7px 10px}
+  input[type=number]:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .field label b{color:var(--ink)}
+  #in-results{display:none}
+  #in-results.show{display:block}
+  .copybar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;
+    background:var(--good-bg);border:1px solid var(--good-bd);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+  .copybar .t{font-size:14px;font-weight:700;color:var(--ink)}
+  .copybar .s{font-size:12.5px;color:var(--ink-soft);margin-top:3px}
+  .copybar button{white-space:nowrap}
 
   .allbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;
     background:var(--accent-soft);border:1px solid var(--border);border-radius:12px;
@@ -188,6 +218,107 @@
     </div>
   </header>
 
+  <nav class="modes" role="tablist">
+    <button class="mode" id="mode-intake" role="tab" aria-selected="false">
+      <span class="num">①</span><span><b>품의 → 시트 옮기기</b><em>재무 품의 첨부파일을 시트 배치로 변환</em></span>
+    </button>
+    <button class="mode active" id="mode-upload" role="tab" aria-selected="true">
+      <span class="num">②</span><span><b>시트 → 업로드 파일</b><em>ERP·홈택스 업로드 엑셀 생성</em></span>
+    </button>
+  </nav>
+
+  <!-- ═══ ① 품의 → 시트 ═══ -->
+  <div id="view-intake" hidden>
+    <section class="card">
+      <p class="eyebrow"><span class="n">사전</span>소득자코드 사전</p>
+      <p class="lead">
+        과거에 처리한 시트 데이터를 한 번 등록해 두면, 같은 사람이 다시 나올 때
+        <b>소득자코드를 자동으로 채워</b>줍니다. ERP에서 한 명씩 찾는 일이 줄어듭니다.
+      </p>
+      <div class="bookbar">
+        <div class="bookstat" id="book-stat">등록된 소득자 0명</div>
+        <button class="btn-ghost" id="book-toggle">사전 관리</button>
+      </div>
+      <div id="book-panel" hidden>
+        <p class="lead" style="margin:14px 0 8px">
+          구글시트 <b>수정신고_부릉</b>에서 과거 이력의 <b>H열~AC열</b>을 넉넉히 선택해 복사 → 아래에 붙여넣고 [사전에 추가].
+          이름 셀에 적어둔 소득자코드를 주민번호와 짝지어 기억합니다.
+        </p>
+        <textarea id="book-input" style="min-height:90px" placeholder="과거 시트 H열~AC열 붙여넣기…"></textarea>
+        <div class="actions">
+          <button class="btn-primary" id="book-add">사전에 추가</button>
+          <button class="btn-ghost" id="book-export">사전 내보내기(.json)</button>
+          <button class="btn-ghost" id="book-import">불러오기</button>
+          <button class="btn-ghost" id="book-clear">사전 비우기</button>
+        </div>
+        <p class="note">사전은 이 브라우저 안에만 저장되며 외부로 전송되지 않습니다. 공용 PC에서는 사용 후 [사전 비우기]를 눌러 주세요.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow"><span class="n">1</span>품의 첨부파일 붙여넣기</p>
+      <p class="lead">
+        재무회계실 품의에서 받은 엑셀을 열고, <b>표 전체(헤더 포함)</b>를 선택해 복사 → 아래에 붙여넣으세요.
+        기사코드 열이 있든 없든 <b>헤더 이름을 보고 자동으로 인식</b>합니다.
+      </p>
+      <textarea id="in-input" placeholder="품의 엑셀의 표를 헤더까지 통째로 붙여넣기…"></textarea>
+      <div class="controls">
+        <div class="field">
+          <label for="in-row">시트에서 붙여넣을 <b>시작 행</b> 번호</label>
+          <input type="number" id="in-row" min="2" value="746" style="width:130px">
+        </div>
+        <label class="check"><input type="checkbox" id="in-formula" checked> 최종금액(AA·AB·AC)을 수식으로 채우기</label>
+      </div>
+      <p class="note">시작 행 = 구글시트에서 이 데이터를 붙여넣을 첫 번째 행 번호. 수식이 그 행에 맞춰 만들어집니다.</p>
+      <div class="actions">
+        <button class="btn-primary" id="in-go">변환하기</button>
+        <button class="btn-ghost" id="in-clear">지우기</button>
+      </div>
+    </section>
+
+    <section class="card" id="in-results">
+      <p class="eyebrow"><span class="n">2</span>시트에 붙여넣기</p>
+      <div id="in-diag" class="diag"></div>
+      <div class="tiles" id="in-tiles"></div>
+      <div id="in-banners"></div>
+      <div class="copybar">
+        <div class="allbar-txt">
+          <div class="t">아래 내용을 복사해 시트 <b><span id="in-cell">H746</span></b> 칸에 붙여넣으세요</div>
+          <div class="s">H열부터 AC열까지 한 번에 들어갑니다 — 중간 열을 따로 맞출 필요 없습니다.</div>
+        </div>
+        <button class="btn-good" id="in-copy">📋 복사하기</button>
+      </div>
+      <textarea id="in-output" readonly style="min-height:110px;font-size:11.5px"></textarea>
+
+      <details class="cols" open style="margin-top:16px">
+        <summary>다음 할 일 — ERP에서 이 값만 조회하면 됩니다</summary>
+        <p class="lead" style="padding:10px 14px 0;margin:0">
+          소득해당자의 <b>기존 소득금액(X·Y·Z열)</b>만 ERP <code class="k">소득자별소득현황</code>에서 조회해 채우면,
+          최종금액은 수식으로 자동 계산됩니다.
+        </p>
+        <div class="tablewrap" style="border:none;border-radius:0">
+          <table><thead><tr><th>소득해당자</th><th>소득자코드</th><th>귀속·지급연월</th></tr></thead>
+          <tbody id="in-lookup"></tbody></table>
+        </div>
+      </details>
+
+      <details class="cols" style="margin-top:12px">
+        <summary>변환 결과 미리보기</summary>
+        <div class="tablewrap" style="border:none;border-radius:0">
+          <table><thead><tr>
+            <th>일자</th><th>소득부인자</th><th>주민번호</th><th>기사코드</th><th>지급연월</th>
+            <th>소득금액</th><th>세율</th><th>소득세</th><th>지방세</th><th>부인내역</th>
+            <th>부인자 최종<br><span style="font-weight:400;color:var(--ink-faint)">S·T·U</span></th>
+            <th>소득해당자</th><th>주민번호</th>
+            <th>해당자 기존<br><span style="font-weight:400;color:var(--ink-faint)">X·Y·Z</span></th>
+          </tr></thead><tbody id="in-tbody"></tbody></table>
+        </div>
+      </details>
+    </section>
+  </div>
+
+  <!-- ═══ ② 시트 → 업로드 파일 ═══ -->
+  <div id="view-upload">
   <section class="card">
     <p class="eyebrow"><span class="n">1</span>데이터 붙여넣기</p>
     <p class="lead">
@@ -291,8 +422,10 @@
       </details>
     </div>
   </section>
+  </div>
 
   <footer>
+    <b>흐름</b> · ① 품의 첨부 → 시트 붙여넣기 블록 (소득자코드 자동) → ERP에서 <b>해당자 기존금액(X·Y·Z)만</b> 조회해 입력 → ② 시트 → ERP·홈택스 업로드 파일.<br>
     <b>ERP</b> · 양식 <code class="k">TSMINC00700_F</code>과 컬럼·시트명이 같고 모든 셀이 텍스트 서식 → 옴니이솔 [엑셀파일업로드] → 오류검증 → 서식반영.<br>
     <b>홈택스</b> · 국세청 간이지급명세서 양식(<code class="k">Sheet1</code>)과 컬럼·타입·서식이 동일하며 <b>귀속월별로 파일이 분리</b>됩니다. 같은 소득자가 한 달에 두 번 나오면 <b>합산해 한 줄</b>로 만듭니다. 내외국인('1'/'9')은 주민번호 뒷자리로 자동 판별합니다.<br>
     <b>구분</b> · <b>부인</b> = 소득부인자 정정 행(시트 S·T·U열, 전액부인이면 0), <b>해당</b> = 소득해당자 반영 행(AA·AB·AC열).<br>
@@ -708,6 +841,239 @@
   root.HometaxCore = API;
 })(window);
 
+/* ===== 품의 수신 코어 (실제 품의 3개 시트로 검증) ===== */
+/* ============================================================================
+ *  품의(업무협조 기안 첨부 xlsx) → 구글시트 붙여넣기 블록 변환 코어
+ * ----------------------------------------------------------------------------
+ *  매뉴얼 [00. 재무회계실 수신] + [01. ERP 데이터 수정] 앞단을 줄인다.
+ *
+ *  문제: 품의 xlsx 컬럼과 구글시트 컬럼이 1:1이 아니다.
+ *    · 품의는 시트마다 배치가 다름 (기사코드 열이 있는 것/없는 것)
+ *    · 시트에는 S·T·U(부인자 최종)가 중간에 끼어 있어 한 번에 붙여넣을 수 없음
+ *    · 소득자코드는 ERP에서 한 명씩 조회해 이름 뒤에 Alt+Enter로 붙여야 함
+ *
+ *  해결: 헤더 이름으로 열을 인식해 시트 H~AC(22열) 배치로 재구성하고,
+ *        소득자코드는 과거 이력 사전에서 자동으로 채운다.
+ * ==========================================================================*/
+(function (root) {
+  'use strict';
+
+  /* 구글시트 H~AC (0-based). ERP/홈택스 생성기와 동일한 배치 */
+  var OUT = {
+    일자: 0, 소득자명: 1, 부인주민: 2, 기사코드: 3, 지급연월: 4, 소득금액: 5,
+    세율: 6, 실지급액: 7, 소득세: 8, 지방소득세: 9, 부인신청내역: 10,
+    부인최종소득: 11, 부인최종소득세: 12, 부인최종지방: 13,   // S,T,U
+    해당자명: 14, 해당주민: 15,
+    해당기존소득: 16, 해당기존소득세: 17, 해당기존지방: 18,   // X,Y,Z (ERP 조회)
+    최종소득: 19, 최종소득세: 20, 최종지방: 21                // AA,AB,AC
+  };
+  var OUT_WIDTH = 22;
+
+  /* 품의 헤더 이름 → 내부 키 (표기 흔들림 흡수) */
+  var HEAD_MAP = [
+    [/^일자$/, '일자'],
+    [/^소득자\s*명$/, '소득자명'],
+    [/^기사\s*코드$/, '기사코드'],
+    [/^지급\s*연월$/, '지급연월'],
+    [/^소득\s*금액$/, '소득금액'],
+    [/^세율$/, '세율'],
+    [/^실\s*지급액$/, '실지급액'],
+    [/^소득세$/, '소득세'],
+    [/^지방\s*소득세$/, '지방소득세'],
+    [/^부인\s*신청\s*내역$/, '부인신청내역'],
+    [/^변경\s*소득자\s*명$/, '해당자명']
+  ];
+
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); }
+  function digits(v) { return String(v == null ? '' : v).replace(/[^0-9]/g, ''); }
+
+  /** 헤더 행을 찾아 열 위치를 매핑. 주민등록번호는 순서로 1번째=부인자, 2번째=해당자 */
+  function detectLayout(matrix) {
+    for (var i = 0; i < Math.min(matrix.length, 12); i++) {
+      var row = matrix[i].map(clean);
+      if (row.indexOf('소득자명') < 0 && row.indexOf('지급연월') < 0) continue;
+      var map = {}, rrnSeen = 0;
+      row.forEach(function (h, j) {
+        if (/^주민\s*등록\s*번호$/.test(h)) {
+          map[rrnSeen === 0 ? '부인주민' : '해당주민'] = j;
+          rrnSeen++;
+          return;
+        }
+        for (var k = 0; k < HEAD_MAP.length; k++) {
+          if (HEAD_MAP[k][0].test(h)) { map[HEAD_MAP[k][1]] = j; return; }
+        }
+      });
+      if (map['지급연월'] !== undefined && map['소득금액'] !== undefined) {
+        return { map: map, headerRow: i, hasHeader: true };
+      }
+    }
+    // 헤더가 없으면 열 개수로 추정 (12열=기사코드 없음 / 13열=있음)
+    var w = matrix.length ? Math.max.apply(null, matrix.map(function (r) { return r.length; })) : 0;
+    var base = (w >= 13)
+      ? { 일자:0,소득자명:1,부인주민:2,기사코드:3,지급연월:4,소득금액:5,세율:6,실지급액:7,소득세:8,지방소득세:9,부인신청내역:10,해당자명:11,해당주민:12 }
+      : { 일자:0,소득자명:1,부인주민:2,지급연월:3,소득금액:4,세율:5,실지급액:6,소득세:7,지방소득세:8,부인신청내역:9,해당자명:10,해당주민:11 };
+    return { map: base, headerRow: -1, hasHeader: false, guessed: true };
+  }
+
+  /* 사전: { 주민번호13 : {name, code} } */
+  function buildBook(matrix, book) {
+    book = book || {};
+    var added = 0;
+    matrix.forEach(function (r) {
+      // 시트 H~AC 블록 기준 (소득자명/주민번호, 변경소득자명/주민번호)
+      [[OUT.소득자명, OUT.부인주민], [OUT.해당자명, OUT.해당주민]].forEach(function (p) {
+        var raw = r[p[0]], rrn = digits(r[p[1]]);
+        if (!raw || rrn.length !== 13) return;
+        var pc = parseNameCode(raw);
+        if (!pc.code) return;
+        if (!book[rrn]) added++;
+        book[rrn] = { name: pc.name, code: pc.code };
+      });
+    });
+    return { book: book, added: added };
+  }
+
+  function parseNameCode(v) {
+    var s = String(v == null ? '' : v).trim();
+    var nums = s.match(/\d+/g);
+    var code = nums ? nums[nums.length - 1] : '';
+    var name = code ? s.replace(new RegExp('[\\s\\n]*' + code + '[\\s\\n]*$'), '') : s;
+    return { name: name.replace(/[\s\n]+/g, ' ').trim(), code: code ? pad6(code) : '' };
+  }
+  function pad6(c) { c = String(c).trim(); while (/^\d+$/.test(c) && c.length < 6) c = '0' + c; return c; }
+
+  /** 이름+코드를 시트 형식("이름\n코드")으로 */
+  function nameWithCode(name, code) {
+    name = clean(name);
+    return code ? name + '\n' + code : name;
+  }
+
+  /* '전액부인' 계열이면 부인자 최종 = 0 */
+  function isFullDenial(text) {
+    var s = clean(text);
+    if (!s) return true;               // 계속 행(빈칸)은 앞 행의 부인내역을 따름
+    return /부인/.test(s) && !/부분/.test(s);
+  }
+
+  /**
+   * 품의 데이터 → 시트 H~AC 붙여넣기 블록
+   * @param matrix  품의에서 복사한 2차원 배열
+   * @param book    주민번호→소득자코드 사전
+   * @param opt     {startRow:number|null}  수식용 시작 행(없으면 값 대신 빈칸)
+   */
+  function convert(matrix, book, opt) {
+    opt = opt || {}; book = book || {};
+    var lay = detectLayout(matrix);
+    var m = lay.map;
+    var startAt = lay.headerRow >= 0 ? lay.headerRow + 1 : 0;
+
+    var out = [], warn = {
+      guessedLayout: !!lay.guessed, hasCode: 0, needCode: [],
+      groups: 0, rows: 0, noRrn: [], lookup: []
+    };
+    var curDenial = '', curBuin = null, curHaing = null;
+
+    for (var i = startAt; i < matrix.length; i++) {
+      var r = matrix[i];
+      if (!r || !r.some(function (c) { return clean(c) !== ''; })) continue;
+      function get(key) { var j = m[key]; return j === undefined ? '' : clean(r[j]); }
+
+      var ym = get('지급연월');
+      if (!ym) continue;                       // 금액 행이 아님
+
+      // 새 그룹(소득자명이 있는 행)
+      if (get('소득자명')) {
+        warn.groups++;
+        curDenial = get('부인신청내역');
+        curBuin  = resolvePerson(get('소득자명'), get('부인주민'), book, warn, '부인자');
+        curHaing = resolvePerson(get('해당자명'), get('해당주민'), book, warn, '해당자');
+      }
+      if (!curBuin) continue;
+      warn.rows++;
+
+      var row = new Array(OUT_WIDTH).fill('');
+      row[OUT.일자]        = get('일자');
+      row[OUT.소득자명]     = get('소득자명') ? nameWithCode(curBuin.name, curBuin.code) : '';
+      row[OUT.부인주민]     = get('소득자명') ? get('부인주민') : '';
+      row[OUT.기사코드]     = get('기사코드');
+      row[OUT.지급연월]     = ym;
+      row[OUT.소득금액]     = get('소득금액');
+      row[OUT.세율]        = normRate(get('세율'));
+      row[OUT.실지급액]     = get('실지급액');
+      row[OUT.소득세]       = get('소득세');
+      row[OUT.지방소득세]   = get('지방소득세');
+      row[OUT.부인신청내역] = get('부인신청내역');
+
+      // 부인자 최종(S,T,U): 전액부인이면 0
+      if (isFullDenial(curDenial)) {
+        row[OUT.부인최종소득] = '0';
+        row[OUT.부인최종소득세] = '0';
+        row[OUT.부인최종지방] = '0';
+      }
+
+      if (get('소득자명')) {
+        row[OUT.해당자명] = nameWithCode(curHaing.name, curHaing.code);
+        row[OUT.해당주민] = get('해당주민');
+      }
+
+      // 최종(AA,AB,AC): 시작 행을 알면 수식으로, 모르면 빈칸
+      if (opt.startRow) {
+        var n = opt.startRow + out.length;
+        row[OUT.최종소득]   = '=IF(X' + n + '="","",X' + n + '+M' + n + ')';
+        row[OUT.최종소득세] = '=IF(Y' + n + '="","",Y' + n + '+P' + n + ')';
+        row[OUT.최종지방]   = '=IF(Z' + n + '="","",Z' + n + '+Q' + n + ')';
+      }
+
+      out.push(row);
+
+      // ERP에서 조회할 목록(해당자 기존금액) — 중복 제거
+      var key = (curHaing.code || curHaing.name) + '|' + ym;
+      if (warn.lookup.every(function (x) { return x.key !== key; })) {
+        warn.lookup.push({ key: key, name: curHaing.name, code: curHaing.code, ym: ym });
+      }
+    }
+    return { rows: out, warnings: warn, layout: lay };
+  }
+
+  function resolvePerson(rawName, rawRrn, book, warn, role) {
+    var pc = parseNameCode(rawName);
+    var rrn = digits(rawRrn);
+    var code = pc.code;
+    if (!code && rrn.length === 13 && book[rrn]) code = book[rrn].code;
+    if (code) warn.hasCode++;
+    else {
+      var label = (pc.name || '(이름없음)') + ' (' + role + ')';
+      if (warn.needCode.indexOf(label) < 0) warn.needCode.push(label);
+    }
+    if (rawName && rrn.length !== 13 && warn.noRrn.indexOf(pc.name) < 0) warn.noRrn.push(pc.name);
+    return { name: pc.name, code: code, rrn: rrn };
+  }
+
+  function normRate(v) {
+    var s = clean(v);
+    if (!s) return '';
+    if (/%/.test(s)) return s;
+    var n = Number(s);
+    if (!isNaN(n) && n > 0 && n < 1) return Math.round(n * 100) + '%';
+    if (!isNaN(n) && n >= 1) return Math.round(n) + '%';
+    return s;
+  }
+
+  /** 결과를 붙여넣기용 TSV로 (셀 안의 줄바꿈은 따옴표로 감쌈) */
+  function toTsv(rows) {
+    return rows.map(function (r) {
+      return r.map(function (c) {
+        var s = String(c == null ? '' : c);
+        return /[\t\n"]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join('\t');
+    }).join('\n');
+  }
+
+  var API = { convert: convert, buildBook: buildBook, detectLayout: detectLayout,
+              toTsv: toTsv, parseNameCode: parseNameCode, OUT: OUT, OUT_WIDTH: OUT_WIDTH };
+  root.IntakeCore = API;
+})(window);
+
 /* ===== UI ===== */
 (function(){
   var $=function(id){return document.getElementById(id);};
@@ -954,5 +1320,151 @@
   $('tab-ht').addEventListener('click',function(){switchTab('ht');});
   $('sample').addEventListener('click',function(){$('input').value=SAMPLE;run();});
   $('clear').addEventListener('click',function(){$('input').value='';$('results').classList.remove('show');$('input').focus();});
+
+  /* ══════════ ① 품의 → 시트 ══════════ */
+  var BOOK_KEY='bureung.codebook.v1';
+  var book=loadBook();
+
+  function loadBook(){
+    try{ return JSON.parse(localStorage.getItem(BOOK_KEY)||'{}'); }catch(e){ return {}; }
+  }
+  function saveBook(){
+    try{ localStorage.setItem(BOOK_KEY,JSON.stringify(book)); }
+    catch(e){ alert('사전을 저장하지 못했습니다(브라우저 저장공간 제한). 이번 세션에서는 계속 사용할 수 있습니다.'); }
+    paintBook();
+  }
+  function paintBook(){
+    var n=Object.keys(book).length;
+    $('book-stat').innerHTML='등록된 소득자 <b>'+n+'</b>명'+(n?'':' <span style="color:var(--ink-faint)">— 과거 시트를 등록하면 소득자코드가 자동으로 채워집니다</span>');
+  }
+
+  function switchMode(which){
+    var intake=which==='intake';
+    $('mode-intake').classList.toggle('active',intake); $('mode-intake').setAttribute('aria-selected',intake);
+    $('mode-upload').classList.toggle('active',!intake); $('mode-upload').setAttribute('aria-selected',!intake);
+    $('view-intake').hidden=!intake; $('view-upload').hidden=intake;
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  function runIntake(){
+    var txt=$('in-input').value;
+    if(!txt.trim()){ $('in-input').focus(); return; }
+    try{
+      var matrix=window.ERPCore.parseClipboard(txt);
+      var startRow=$('in-formula').checked?parseInt($('in-row').value,10)||0:0;
+      var res=window.IntakeCore.convert(matrix,book,{startRow:startRow});
+      renderIntake(res,startRow);
+    }catch(err){
+      $('in-results').classList.add('show');
+      $('in-banners').innerHTML=banner('warn','⚠','처리 중 오류: <b>'+esc(String(err&&err.message||err))+'</b>');
+      $('in-tiles').innerHTML=''; $('in-output').value=''; $('in-tbody').innerHTML='';
+    }
+  }
+
+  function renderIntake(res,startRow){
+    var w=res.warnings, L=res.layout;
+    $('in-diag').innerHTML='읽은 줄 <b>'+ (w.groups+w.rows) +'</b> · 헤더 '+(L.hasHeader?'인식 <b>'+(L.headerRow+1)+'행</b>':'<span>없음(열 개수로 추정)</span>')
+      +' · 기사코드 열 '+(L.map['기사코드']!==undefined?'<b>있음</b>':'<b>없음</b>')
+      +' · 소득자 <b>'+w.groups+'</b>건 · 생성 <b>'+res.rows.length+'</b>행';
+
+    $('in-tiles').innerHTML=[
+      ['변환 행수',res.rows.length,''],
+      ['소득자 건수',w.groups,''],
+      ['코드 자동채움',w.hasCode,w.hasCode?'good':''],
+      ['ERP 조회 필요',w.lookup.length,w.lookup.length?'warn':'good']
+    ].map(function(t){return '<div class="tile '+t[2]+'"><div class="v">'+t[1]+'</div><div class="l">'+t[0]+'</div></div>';}).join('');
+
+    var b='';
+    if(!res.rows.length) b+=banner('warn','⚠','변환된 행이 없습니다. 품의 표를 <b>헤더까지 포함</b>해 복사했는지 확인하세요.');
+    if(L.guessed) b+=banner('warn','⚠','헤더를 찾지 못해 <b>열 개수로 추정</b>했습니다. 결과 미리보기에서 값이 제자리에 들어갔는지 꼭 확인하세요.');
+    if(w.needCode.length) b+=banner('warn','⚠','소득자코드를 못 찾은 대상 <b>'+w.needCode.length+'명</b>: '+esc(w.needCode.join(', '))
+      +' — ERP <code class="k">소득자등록</code>에서 코드를 확인해 시트의 이름 칸에 Alt+Enter로 추가하세요. (신규 소득자면 먼저 등록)');
+    if(w.noRrn.length) b+=banner('info','ℹ','주민번호가 13자리가 아닌 대상: '+esc(w.noRrn.join(', ')));
+    $('in-banners').innerHTML=b;
+
+    $('in-cell').textContent='H'+(startRow||'?');
+    $('in-output').value=window.IntakeCore.toTsv(res.rows);
+
+    $('in-lookup').innerHTML=w.lookup.length
+      ? w.lookup.map(function(x){return '<tr><td class="name">'+esc(x.name)+'</td><td>'+(x.code||'<span class="chip no">코드없음</span>')+'</td><td>'+esc(x.ym)+'</td></tr>';}).join('')
+      : '<tr><td colspan="3"><div class="empty">조회할 항목이 없습니다.</div></td></tr>';
+
+    var O=window.IntakeCore.OUT;
+    $('in-tbody').innerHTML=res.rows.map(function(r){
+      function c(i){return esc(String(r[i]||'').replace(/\n/g,' '));}
+      return '<tr'+(r[O.소득자명]?'':' class="cont"')+'>'+
+        '<td>'+c(O.일자)+'</td><td class="name">'+c(O.소득자명)+'</td><td>'+c(O.부인주민)+'</td>'+
+        '<td>'+c(O.기사코드)+'</td><td>'+c(O.지급연월)+'</td><td class="num">'+c(O.소득금액)+'</td>'+
+        '<td class="num">'+c(O.세율)+'</td><td class="num">'+c(O.소득세)+'</td><td class="num">'+c(O.지방소득세)+'</td>'+
+        '<td>'+c(O.부인신청내역)+'</td>'+
+        '<td class="num">'+c(O.부인최종소득)+' · '+c(O.부인최종소득세)+' · '+c(O.부인최종지방)+'</td>'+
+        '<td class="name">'+c(O.해당자명)+'</td><td>'+c(O.해당주민)+'</td>'+
+        '<td style="color:var(--warn)">ERP 조회</td></tr>';
+    }).join('');
+
+    $('in-results').classList.add('show');
+    $('in-results').scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+
+  function copyOutput(){
+    var ta=$('in-output');
+    if(!ta.value){return;}
+    var done=function(){ var btn=$('in-copy'); var t=btn.textContent;
+      btn.textContent='✓ 복사됨'; setTimeout(function(){btn.textContent=t;},1600); };
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(ta.value).then(done,fallback);
+    } else fallback();
+    function fallback(){
+      ta.removeAttribute('readonly'); ta.select(); ta.setSelectionRange(0,ta.value.length);
+      try{ document.execCommand('copy'); done(); }
+      catch(e){ alert('자동 복사가 막혀 있습니다. 아래 칸에서 Ctrl+A → Ctrl+C 로 복사해 주세요.'); }
+      ta.setAttribute('readonly','');
+    }
+  }
+
+  $('mode-intake').addEventListener('click',function(){switchMode('intake');});
+  $('mode-upload').addEventListener('click',function(){switchMode('upload');});
+  $('in-go').addEventListener('click',runIntake);
+  $('in-copy').addEventListener('click',copyOutput);
+  $('in-clear').addEventListener('click',function(){
+    $('in-input').value=''; $('in-results').classList.remove('show'); $('in-input').focus();
+  });
+  $('book-toggle').addEventListener('click',function(){ $('book-panel').hidden=!$('book-panel').hidden; });
+  $('book-add').addEventListener('click',function(){
+    var txt=$('book-input').value;
+    if(!txt.trim()){ $('book-input').focus(); return; }
+    var matrix=window.ERPCore.parseClipboard(txt);
+    var r=window.IntakeCore.buildBook(matrix,book);
+    book=r.book; saveBook();
+    $('book-input').value='';
+    alert('사전에 '+r.added+'명을 새로 추가했습니다.\n현재 등록: '+Object.keys(book).length+'명');
+  });
+  $('book-clear').addEventListener('click',function(){
+    if(!confirm('사전을 모두 비웁니다. 계속할까요?'))return;
+    book={}; try{localStorage.removeItem(BOOK_KEY);}catch(e){} paintBook();
+  });
+  $('book-export').addEventListener('click',function(){
+    var blob=new Blob([JSON.stringify(book,null,1)],{type:'application/json'});
+    var url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download='소득자코드사전.json';document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(url);a.remove();},1500);
+  });
+  $('book-import').addEventListener('click',function(){
+    var inp=document.createElement('input'); inp.type='file'; inp.accept='.json,application/json';
+    inp.addEventListener('change',function(){
+      var f=inp.files&&inp.files[0]; if(!f)return;
+      var fr=new FileReader();
+      fr.onload=function(){
+        try{
+          var obj=JSON.parse(fr.result); var n=0;
+          Object.keys(obj).forEach(function(k){ if(!book[k])n++; book[k]=obj[k]; });
+          saveBook(); alert('사전을 불러왔습니다. 새로 추가 '+n+'명 / 총 '+Object.keys(book).length+'명');
+        }catch(e){ alert('사전 파일을 읽지 못했습니다.'); }
+      };
+      fr.readAsText(f);
+    });
+    inp.click();
+  });
+  paintBook();
 })();
 </script>
