@@ -169,6 +169,22 @@
   .mode em{display:block;font-style:normal;font-size:12px;color:var(--ink-soft);margin-top:2px}
   .mode.active b{color:var(--accent)}
 
+  .drop{border:2px dashed var(--border-strong);border-radius:14px;padding:26px 18px;text-align:center;
+    cursor:pointer;background:var(--surface-2);transition:border-color .15s,background .15s}
+  .drop:hover,.drop:focus-visible{border-color:var(--accent);background:var(--accent-soft);outline:none}
+  .drop.over{border-color:var(--accent);background:var(--accent-soft)}
+  .drop.done{border-style:solid;border-color:var(--good-bd);background:var(--good-bg)}
+  .drop-ic{font-size:28px;line-height:1}
+  .drop-t{font-size:14.5px;font-weight:600;margin-top:9px;color:var(--ink)}
+  .drop-s{font-size:12px;color:var(--ink-soft);margin-top:4px}
+  .sheets{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+  .sheets .lbl{font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-right:2px}
+  .sheets button{font-size:13px;padding:7px 13px;background:var(--surface);color:var(--ink-soft);
+    border:1px solid var(--border-strong);border-radius:20px;font-weight:600}
+  .sheets button:hover{border-color:var(--accent);color:var(--accent)}
+  .sheets button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .sheets button .c{opacity:.75;font-weight:400;margin-left:5px;font-size:11.5px}
+
   .bookbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .bookstat{font-size:13.5px;font-weight:600;color:var(--ink);background:var(--surface-2);
     border:1px solid var(--border);border-radius:9px;padding:8px 13px;font-variant-numeric:tabular-nums}
@@ -268,12 +284,26 @@
     </section>
 
     <section class="card">
-      <p class="eyebrow"><span class="n">1</span>품의 첨부파일 붙여넣기</p>
+      <p class="eyebrow"><span class="n">1</span>품의 첨부파일 넣기</p>
       <p class="lead">
-        재무회계실 품의에서 받은 엑셀을 열고, <b>표 전체(헤더 포함)</b>를 선택해 복사 → 아래에 붙여넣으세요.
+        재무회계실 품의에서 받은 <b>엑셀 파일을 그대로 올리면</b> 알아서 읽습니다. 열어서 복사할 필요 없습니다.
         기사코드 열이 있든 없든 <b>헤더 이름을 보고 자동으로 인식</b>합니다.
       </p>
-      <textarea id="in-input" placeholder="품의 엑셀의 표를 헤더까지 통째로 붙여넣기…"></textarea>
+
+      <div class="drop" id="in-drop" tabindex="0" role="button">
+        <div class="drop-ic">📄</div>
+        <div class="drop-t">품의 엑셀 파일을 여기에 끌어다 놓거나 <u>클릭해서 선택</u></div>
+        <div class="drop-s">.xlsx 파일 · 파일은 이 브라우저 안에서만 열립니다</div>
+        <input type="file" id="in-file" accept=".xlsx" hidden>
+      </div>
+      <div id="in-sheets" class="sheets" hidden></div>
+
+      <details class="cols" style="margin-top:14px">
+        <summary>파일 대신 직접 붙여넣기</summary>
+        <div style="padding:12px 14px">
+          <textarea id="in-input" placeholder="품의 엑셀의 표를 헤더까지 통째로 붙여넣기…"></textarea>
+        </div>
+      </details>
       <div class="controls">
         <div class="field">
           <label for="in-row">시트에서 붙여넣을 <b>시작 행</b> 번호</label>
@@ -853,6 +883,176 @@
   root.HometaxCore = API;
 })(window);
 
+/* ===== xlsx 리더 (브라우저에서 품의 파일 직접 읽기) ===== */
+/* ============================================================================
+ *  브라우저에서 .xlsx 읽기 — 외부 라이브러리 없음
+ * ----------------------------------------------------------------------------
+ *  품의 첨부파일을 열지 않고 그대로 업로드해서 파싱하기 위한 최소 구현.
+ *  · ZIP(중앙 디렉터리) 파싱 → stored/deflate 해제(DecompressionStream)
+ *  · sharedStrings / worksheet XML 파싱 → 2차원 배열
+ *  · 병합셀은 확장하지 않는다(엑셀에서 복사해 붙여넣은 것과 동일한 모양 유지).
+ *    품의 표는 소득자명이 첫 행에만 있는 구조라 이 모양이 오히려 정확하다.
+ * ==========================================================================*/
+(function (root) {
+  'use strict';
+
+  function u16(b, p) { return b[p] | (b[p + 1] << 8); }
+  function u32(b, p) { return (b[p] | (b[p + 1] << 8) | (b[p + 2] << 16) | (b[p + 3] << 24)) >>> 0; }
+
+  /** ZIP 엔트리 목록 { name, offset, compMethod, compSize, size } */
+  function listEntries(bytes) {
+    // End of Central Directory 찾기 (뒤에서부터)
+    var eocd = -1;
+    for (var i = bytes.length - 22; i >= 0 && i > bytes.length - 66000; i--) {
+      if (u32(bytes, i) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('ZIP 구조를 찾지 못했습니다(올바른 .xlsx 파일이 아닐 수 있습니다).');
+    var count = u16(bytes, eocd + 10);
+    var cdOff = u32(bytes, eocd + 16);
+
+    var out = [], p = cdOff;
+    for (var n = 0; n < count; n++) {
+      if (u32(bytes, p) !== 0x02014b50) break;
+      var method = u16(bytes, p + 10);
+      var compSize = u32(bytes, p + 20);
+      var size = u32(bytes, p + 24);
+      var nameLen = u16(bytes, p + 28);
+      var extraLen = u16(bytes, p + 30);
+      var cmtLen = u16(bytes, p + 32);
+      var localOff = u32(bytes, p + 42);
+      var name = new TextDecoder('utf-8').decode(bytes.subarray(p + 46, p + 46 + nameLen));
+      out.push({ name: name, method: method, compSize: compSize, size: size, localOff: localOff });
+      p += 46 + nameLen + extraLen + cmtLen;
+    }
+    return out;
+  }
+
+  async function readEntry(bytes, e) {
+    // 로컬 헤더에서 실제 데이터 시작 위치 계산
+    var p = e.localOff;
+    if (u32(bytes, p) !== 0x04034b50) throw new Error('ZIP 항목이 손상되었습니다: ' + e.name);
+    var nameLen = u16(bytes, p + 26), extraLen = u16(bytes, p + 28);
+    var start = p + 30 + nameLen + extraLen;
+    var raw = bytes.subarray(start, start + e.compSize);
+    if (e.method === 0) return new TextDecoder('utf-8').decode(raw);
+    if (e.method !== 8) throw new Error('지원하지 않는 압축 방식입니다(' + e.method + ').');
+    if (typeof DecompressionStream === 'undefined') {
+      throw new Error('이 브라우저는 파일 해제를 지원하지 않습니다. 최신 Chrome/Edge에서 열어 주세요.');
+    }
+    var ds = new DecompressionStream('deflate-raw');
+    var stream = new Blob([raw]).stream().pipeThrough(ds);
+    var buf = await new Response(stream).arrayBuffer();
+    return new TextDecoder('utf-8').decode(new Uint8Array(buf));
+  }
+
+  function parseXml(text) {
+    var doc = new DOMParser().parseFromString(text, 'application/xml');
+    if (doc.getElementsByTagName('parsererror').length) throw new Error('엑셀 내부 XML을 읽지 못했습니다.');
+    return doc;
+  }
+
+  /** A1 → {col:0-based, row:0-based} */
+  function refToRC(ref) {
+    var m = /^([A-Z]+)(\d+)$/.exec(ref || '');
+    if (!m) return null;
+    var c = 0;
+    for (var i = 0; i < m[1].length; i++) c = c * 26 + (m[1].charCodeAt(i) - 64);
+    return { col: c - 1, row: parseInt(m[2], 10) - 1 };
+  }
+
+  function textOf(node) {
+    // <si> 안의 모든 <t> 이어붙이기 (리치텍스트 대응)
+    var ts = node.getElementsByTagName('t'), s = '';
+    for (var i = 0; i < ts.length; i++) s += ts[i].textContent;
+    return s;
+  }
+
+  /** .xlsx ArrayBuffer → [{name, rows:[[cell,…],…]}] */
+  async function read(arrayBuffer) {
+    var bytes = new Uint8Array(arrayBuffer);
+    var entries = listEntries(bytes);
+    var byName = {};
+    entries.forEach(function (e) { byName[e.name] = e; });
+
+    function need(n) {
+      if (!byName[n]) throw new Error('엑셀 구성요소를 찾지 못했습니다: ' + n);
+      return byName[n];
+    }
+
+    // 공유 문자열
+    var shared = [];
+    if (byName['xl/sharedStrings.xml']) {
+      var sdoc = parseXml(await readEntry(bytes, byName['xl/sharedStrings.xml']));
+      var sis = sdoc.getElementsByTagName('si');
+      for (var i = 0; i < sis.length; i++) shared.push(textOf(sis[i]));
+    }
+
+    // 시트 목록(순서/이름) + rId → 파일경로
+    var wdoc = parseXml(await readEntry(bytes, need('xl/workbook.xml')));
+    var rdoc = parseXml(await readEntry(bytes, need('xl/_rels/workbook.xml.rels')));
+    var relMap = {};
+    var rels = rdoc.getElementsByTagName('Relationship');
+    for (var r = 0; r < rels.length; r++) {
+      var t = rels[r].getAttribute('Target') || '';
+      relMap[rels[r].getAttribute('Id')] = t.charAt(0) === '/' ? t.slice(1) : ('xl/' + t.replace(/^\.\//, ''));
+    }
+
+    var sheets = [];
+    var sh = wdoc.getElementsByTagName('sheet');
+    for (var s = 0; s < sh.length; s++) {
+      var name = sh[s].getAttribute('name');
+      var rid = sh[s].getAttribute('r:id') || sh[s].getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+      var target = relMap[rid];
+      if (!target || !byName[target]) continue;
+      sheets.push({ name: name, rows: await readSheet(bytes, byName[target], shared) });
+    }
+    return sheets;
+  }
+
+  async function readSheet(bytes, entry, shared) {
+    var doc = parseXml(await readEntry(bytes, entry));
+    var rowsEl = doc.getElementsByTagName('row');
+    var grid = [], maxCol = 0;
+
+    for (var i = 0; i < rowsEl.length; i++) {
+      var rEl = rowsEl[i];
+      var rIdx = parseInt(rEl.getAttribute('r') || (i + 1), 10) - 1;
+      var cells = rEl.getElementsByTagName('c');
+      var line = grid[rIdx] || (grid[rIdx] = []);
+      for (var j = 0; j < cells.length; j++) {
+        var c = cells[j];
+        var rc = refToRC(c.getAttribute('r'));
+        var col = rc ? rc.col : j;
+        var t = c.getAttribute('t');
+        var val = '';
+        if (t === 'inlineStr') {
+          val = textOf(c);
+        } else {
+          var vs = c.getElementsByTagName('v');
+          var raw = vs.length ? vs[0].textContent : '';
+          if (t === 's') val = shared[parseInt(raw, 10)] || '';
+          else if (t === 'str' || t === 'e') val = raw;
+          else val = raw;              // 숫자/날짜 시리얼은 원문 그대로
+        }
+        line[col] = val;
+        if (col + 1 > maxCol) maxCol = col + 1;
+      }
+    }
+    // 구멍 메우기
+    var out = [];
+    for (var k = 0; k < grid.length; k++) {
+      var row = grid[k] || [];
+      var filled = new Array(maxCol);
+      for (var m = 0; m < maxCol; m++) filled[m] = row[m] == null ? '' : String(row[m]);
+      out.push(filled);
+    }
+    return out;
+  }
+
+  var API = { read: read, listEntries: listEntries };
+  root.XlsxReader = API;
+})(window);
+
 /* ===== 품의 수신 코어 (실제 품의 3개 시트로 검증) ===== */
 /* ============================================================================
  *  품의(업무협조 기안 첨부 xlsx) → 구글시트 붙여넣기 블록 변환 코어
@@ -1358,6 +1558,63 @@
     window.scrollTo({top:0,behavior:'smooth'});
   }
 
+  /* ── 품의 파일(.xlsx) 직접 읽기 ── */
+  var loadedSheets=null, pickedSheet=-1;
+
+  function tsvFromMatrix(mat){
+    return mat.map(function(r){
+      return r.map(function(c){
+        var s=String(c==null?'':c);
+        return /[\t\n"]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+      }).join('\t');
+    }).join('\n');
+  }
+  function countRows(mat){ // 데이터로 보이는 행 수(대략)
+    return mat.filter(function(r){return r.some(function(c){return String(c||'').trim()!=='';});}).length;
+  }
+  async function handleFile(file){
+    if(!file)return;
+    var drop=$('in-drop');
+    drop.classList.remove('done');
+    $('in-drop').querySelector('.drop-t').textContent='읽는 중… '+file.name;
+    try{
+      var buf=await file.arrayBuffer();
+      var sheets=await window.XlsxReader.read(buf);
+      sheets=sheets.filter(function(s){return countRows(s.rows)>1;});
+      if(!sheets.length) throw new Error('내용이 있는 시트를 찾지 못했습니다.');
+      loadedSheets=sheets;
+      drop.classList.add('done');
+      drop.querySelector('.drop-ic').textContent='✅';
+      drop.querySelector('.drop-t').textContent=file.name;
+      drop.querySelector('.drop-s').textContent='시트 '+sheets.length+'개 · 아래에서 처리할 품의를 고르세요';
+      paintSheets();
+      pickSheet(0);
+    }catch(err){
+      drop.classList.remove('done');
+      drop.querySelector('.drop-ic').textContent='⚠️';
+      drop.querySelector('.drop-t').textContent='파일을 읽지 못했습니다';
+      drop.querySelector('.drop-s').textContent=String(err&&err.message||err);
+      loadedSheets=null; $('in-sheets').hidden=true;
+    }
+  }
+  function paintSheets(){
+    if(!loadedSheets){ $('in-sheets').hidden=true; return; }
+    $('in-sheets').hidden=false;
+    $('in-sheets').innerHTML='<span class="lbl">처리할 품의(시트) 선택</span>'+
+      loadedSheets.map(function(s,i){
+        return '<button data-i="'+i+'"'+(i===pickedSheet?' class="on"':'')+'>'+esc(s.name)+'<span class="c">'+countRows(s.rows)+'행</span></button>';
+      }).join('');
+    Array.prototype.forEach.call($('in-sheets').querySelectorAll('button'),function(btn){
+      btn.addEventListener('click',function(){ pickSheet(parseInt(btn.getAttribute('data-i'),10)); });
+    });
+  }
+  function pickSheet(i){
+    if(!loadedSheets||!loadedSheets[i])return;
+    pickedSheet=i; paintSheets();
+    $('in-input').value=tsvFromMatrix(loadedSheets[i].rows);
+    runIntake();
+  }
+
   function runIntake(){
     var txt=$('in-input').value;
     if(!txt.trim()){ $('in-input').focus(); return; }
@@ -1439,7 +1696,25 @@
   $('in-go').addEventListener('click',runIntake);
   $('in-copy').addEventListener('click',copyOutput);
   $('in-clear').addEventListener('click',function(){
-    $('in-input').value=''; $('in-results').classList.remove('show'); $('in-input').focus();
+    $('in-input').value=''; $('in-results').classList.remove('show');
+    loadedSheets=null; pickedSheet=-1; $('in-sheets').hidden=true;
+    var d=$('in-drop'); d.classList.remove('done');
+    d.querySelector('.drop-ic').textContent='📄';
+    d.querySelector('.drop-t').innerHTML='품의 엑셀 파일을 여기에 끌어다 놓거나 <u>클릭해서 선택</u>';
+    d.querySelector('.drop-s').textContent='.xlsx 파일 · 파일은 이 브라우저 안에서만 열립니다';
+  });
+  $('in-drop').addEventListener('click',function(){ $('in-file').click(); });
+  $('in-drop').addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){e.preventDefault();$('in-file').click();} });
+  $('in-file').addEventListener('change',function(){ handleFile($('in-file').files&&$('in-file').files[0]); });
+  ['dragenter','dragover'].forEach(function(ev){
+    $('in-drop').addEventListener(ev,function(e){ e.preventDefault(); $('in-drop').classList.add('over'); });
+  });
+  ['dragleave','drop'].forEach(function(ev){
+    $('in-drop').addEventListener(ev,function(e){ e.preventDefault(); $('in-drop').classList.remove('over'); });
+  });
+  $('in-drop').addEventListener('drop',function(e){
+    var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+    if(f) handleFile(f);
   });
   $('book-toggle').addEventListener('click',function(){ $('book-panel').hidden=!$('book-panel').hidden; });
   $('book-add').addEventListener('click',function(){
