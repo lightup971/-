@@ -1,0 +1,236 @@
+<title>수정신고 공수 재산정</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --paper:#f6f7f9; --card:#ffffff; --card-2:#f0f2f6; --card-3:#e7eaf0;
+    --line:#dadfe8; --line-2:#c3cad6;
+    --ink:#171c26; --ink-2:#4c5666; --ink-3:#7d8798;
+    --accent:#1c5f63; --accent-soft:#e0efef;
+    --prob:#8f4436; --prob-soft:#f8eae6; --prob-line:#e0bdb3;
+    --fix:#2f6b3f; --fix-soft:#e6f2e9;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",Segoe UI,Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#0f1319; --card:#161b24; --card-2:#1c222d; --card-3:#242c3a;
+      --line:#2a3240; --line-2:#3a4454;
+      --ink:#e8ecf3; --ink-2:#a3adbd; --ink-3:#788293;
+      --accent:#4fb3b8; --accent-soft:#14282b;
+      --prob:#d98b78; --prob-soft:#2a1a16; --prob-line:#5a3128;
+      --fix:#68b57f; --fix-soft:#15251b;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0f1319; --card:#161b24; --card-2:#1c222d; --card-3:#242c3a;
+    --line:#2a3240; --line-2:#3a4454;
+    --ink:#e8ecf3; --ink-2:#a3adbd; --ink-3:#788293;
+    --accent:#4fb3b8; --accent-soft:#14282b;
+    --prob:#d98b78; --prob-soft:#2a1a16; --prob-line:#5a3128;
+    --fix:#68b57f; --fix-soft:#15251b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:15.5px;line-height:1.72;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto;padding:52px 24px 96px}
+  .cover{border-bottom:2px solid var(--ink);padding-bottom:22px;margin-bottom:34px}
+  .kicker{font-size:11.5px;font-weight:800;letter-spacing:.16em;color:var(--accent);margin:0 0 12px}
+  h1{font-size:clamp(26px,4.2vw,36px);line-height:1.26;letter-spacing:-.025em;margin:0 0 14px;font-weight:800;text-wrap:balance}
+  .thesis{font-size:16.5px;color:var(--ink-2);margin:0;max-width:64ch;line-height:1.7}
+  .thesis b{color:var(--ink);font-weight:700}
+  .meta{display:flex;gap:20px;flex-wrap:wrap;margin-top:18px;font-size:12.5px;color:var(--ink-3)}
+  .meta b{color:var(--ink-2);font-weight:600}
+  h2{font-size:12px;font-weight:800;letter-spacing:.14em;color:var(--accent);
+    margin:48px 0 8px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+  .h2sub{color:var(--ink-2);font-size:14.5px;margin:0 0 18px}
+
+  /* 큰 수치 */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px;margin:18px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px}
+  .kpi .v{font-size:29px;font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;
+    font-family:var(--mono)}
+  .kpi .l{font-size:12.5px;color:var(--ink-2);margin-top:7px;line-height:1.5}
+  .kpi .n{font-size:11px;color:var(--ink-3);margin-top:4px}
+  .kpi.p{border-color:var(--prob-line);background:var(--prob-soft)} .kpi.p .v{color:var(--prob)}
+  .kpi.a .v{color:var(--accent)}
+
+  .tw{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:7px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--card)}
+  th{background:var(--card-3);color:var(--ink-2);font-size:11.5px;font-weight:800;letter-spacing:.05em;
+    text-align:right;padding:10px 13px;white-space:nowrap;border-bottom:1px solid var(--line)}
+  th:first-child{text-align:left}
+  td{padding:9px 13px;border-bottom:1px solid var(--line);text-align:right;line-height:1.6;
+    font-variant-numeric:tabular-nums;font-family:var(--mono);white-space:nowrap}
+  td:first-child{text-align:left;font-family:var(--sans)}
+  tr:last-child td{border-bottom:none}
+  td.txt{font-family:var(--sans);text-align:left;white-space:normal}
+  tr.hi td{background:var(--accent-soft);font-weight:700}
+  tr.tot td{background:var(--card-2);font-weight:800;border-top:2px solid var(--line-2)}
+  td.p{color:var(--prob)} td.f{color:var(--fix)}
+  .bar{display:inline-block;height:8px;background:var(--accent);border-radius:2px;vertical-align:middle;margin-right:7px}
+  .bar.dim{background:var(--line-2)}
+
+  .call{border-radius:8px;padding:18px 22px;margin:20px 0;font-size:15px;line-height:1.7}
+  .call.p{background:var(--prob-soft);border:1px solid var(--prob-line)}
+  .call.a{background:var(--accent-soft);border:1px solid var(--line)}
+  .call b{font-weight:800}
+  .call .t{font-weight:800;font-size:15.5px;margin-bottom:7px;display:block}
+  .call.p .t{color:var(--prob)}
+  .call.a .t{color:var(--accent)}
+
+  .note{font-size:13px;color:var(--ink-3);line-height:1.7;margin:10px 0 0}
+  .note b{color:var(--ink-2)}
+  .tag{display:inline-block;font-size:10px;font-weight:800;padding:1px 7px;border-radius:3px;letter-spacing:.04em;
+    background:var(--card-3);color:var(--ink-3);vertical-align:1px;margin-left:5px}
+  .tag.m{background:var(--fix-soft);color:var(--fix)}
+  .tag.c{background:var(--accent-soft);color:var(--accent)}
+  .tag.e{background:var(--prob-soft);color:var(--prob)}
+  ul.pl{padding-left:19px;margin:12px 0} ul.pl li{margin:7px 0;color:var(--ink-2)} ul.pl li b{color:var(--ink)}
+  footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-3);line-height:1.75}
+</style>
+
+<div class="wrap">
+  <div class="cover">
+    <p class="kicker">공수 분석 · 개선안 4·5장 근거</p>
+    <h1>사업소득 수정신고 공수 재산정</h1>
+    <p class="thesis">
+      측정된 업무 중 <b>70%</b>가 이 업무 하나입니다. 그런데 산정된 24h/월에는
+      <b>대사·오류 정정 시간이 빠져 있고</b>, 사전세팅·최종검증도 별도로 잡혀 있습니다.
+      즉 <b>24h/월은 실제 공수의 하한선</b>입니다.
+    </p>
+    <div class="meta">
+      <span><b>측정 기간</b> 2026-05-18 ~ 07-27 (영업일 56일)</span>
+      <span><b>처리량</b> 237건</span>
+      <span><b>건당</b> 16분</span>
+    </div>
+  </div>
+
+  <h2>1. 측정된 공수</h2>
+  <p class="h2sub">공수표에 기록된 값을 그대로 검산했습니다. 표의 수치와 일치합니다.</p>
+
+  <div class="kpis">
+    <div class="kpi a"><div class="v">24<span style="font-size:17px">h/월</span></div>
+      <div class="l">사업소득 수정신고</div><div class="n">91건/월 × 16분</div></div>
+    <div class="kpi"><div class="v">63<span style="font-size:17px">h</span></div>
+      <div class="l">측정 기간 누적</div><div class="n">237건 × 16분</div></div>
+    <div class="kpi"><div class="v">1.1<span style="font-size:17px">h/일</span></div>
+      <div class="l">일 평균</div><div class="n">4.2건/일</div></div>
+    <div class="kpi a"><div class="v">70<span style="font-size:17px">%</span></div>
+      <div class="l">측정 업무 중 비중</div><div class="n">전체 34.2h/월 대비</div></div>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>업무</th><th>월 공수</th><th>비중</th><th style="width:38%"></th></tr></thead>
+      <tbody>
+        <tr class="hi"><td>사업소득 수정신고</td><td>24.0h</td><td>70.2%</td>
+          <td style="text-align:left"><span class="bar" style="width:70%"></span></td></tr>
+        <tr><td>공간관리</td><td>6.5h</td><td>19.0%</td>
+          <td style="text-align:left"><span class="bar dim" style="width:19%"></span></td></tr>
+        <tr><td>조직도 업데이트</td><td>2.4h</td><td>7.0%</td>
+          <td style="text-align:left"><span class="bar dim" style="width:7%"></span></td></tr>
+        <tr><td>커피머신 세척</td><td>1.0h</td><td>2.9%</td>
+          <td style="text-align:left"><span class="bar dim" style="width:3%"></span></td></tr>
+        <tr><td>라이더 원천징수영수증</td><td>0.3h</td><td>0.9%</td>
+          <td style="text-align:left"><span class="bar dim" style="width:1%"></span></td></tr>
+        <tr class="tot"><td>측정 완료분 합계</td><td>34.2h</td><td>100%</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note"><b>※</b> 6~11번(사원명부·연장근무·연차정산·복지포인트 등)은 측정 예정이므로 위 비중은 측정 완료분 기준입니다.
+    다만 나머지가 모두 더해져도 수정신고가 단일 최대 업무라는 결론은 바뀌지 않습니다.</p>
+
+  <h2>2. 빠져 있는 공수 — 대사 및 오류 정정</h2>
+  <p class="h2sub">신고를 마친 뒤 값이 맞는지 확인하고 틀린 것을 되돌리는 시간입니다. 위 24h/월에는 포함되지 않았습니다.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>대상 연도</th><th>대상 기간</th><th>투입 시간</th><th>상태</th><th>개월분당 단가</th></tr></thead>
+      <tbody>
+        <tr><td>2025 ~ 2026</td><td>약 19개월분</td><td class="f">7.0h</td><td class="txt">완료</td><td class="f">0.37h</td></tr>
+        <tr><td>2024</td><td>약 12개월분</td><td class="p">6.0h 초과</td><td class="txt p">미완 · 오류 미파악</td><td class="p">0.50h 이상</td></tr>
+        <tr class="tot"><td>합계</td><td>약 31개월분</td><td>13.0h 이상</td><td class="txt">일부 미완</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="call p">
+    <span class="t">2024년만 유독 오래 걸리는 이유는 난이도가 아니라 기록의 부재</span>
+    2025~2026년과 같은 단가(0.37h/개월분)라면 2024년 12개월분은 <b>4.4시간</b>이면 끝났어야 합니다.
+    현재 <b>6시간을 넘겼는데도 오류 파악조차 완료되지 않았습니다.</b>
+    차이를 만든 것은 업무의 어려움이 아니라, <b>전임자가 수정신고 결과를 ERP에 반영하지 않아 무엇이 처리됐는지 확인할 방법이 없다</b>는 점입니다.
+  </div>
+
+  <div class="call a">
+    <span class="t">거꾸로 읽으면, 체계화의 효과가 이미 측정되어 있습니다</span>
+    사수님이 2025년부터 도입한 구글시트 관리 방식은 대사 비용을 <b>개월분당 0.37시간</b>으로 낮췄습니다.
+    같은 업무의 비체계 구간(2024년)은 <b>같은 시간을 쓰고도 끝나지 않았습니다.</b>
+    <b>진행 상태를 남기는 것만으로 사후 비용이 최소 1.4배 이상 차이</b>가 난다는 사내 실측 근거입니다.
+  </div>
+
+  <h2>3. 실제 공수 재산정</h2>
+  <p class="h2sub">공수표 비고란의 조건(고정공수 별도, 버퍼 20~30%)과 누락분을 반영했습니다.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>구성</th><th>월 공수</th><th>근거</th></tr></thead>
+      <tbody>
+        <tr><td>건당 처리 <span class="tag m">측정</span></td><td>24.0h</td><td class="txt">91건/월 × 16분</td></tr>
+        <tr><td>대사·오류 정정 <span class="tag m">측정</span></td><td>+0.4h</td><td class="txt">13h ÷ 31개월분 (2024년 미완이므로 실제는 더 큼)</td></tr>
+        <tr><td>사전세팅·최종검증 <span class="tag e">미측정</span></td><td class="p">+ ?</td><td class="txt">공수표 비고에 “고정공수 별도” 명시</td></tr>
+        <tr><td>버퍼 20~30% <span class="tag c">계산</span></td><td>+4.9 ~ 7.3h</td><td class="txt">공수표 비고에 “버퍼 확보 필요” 명시</td></tr>
+        <tr class="tot"><td>실제 공수 (사전세팅·검증 제외)</td><td>29.3 ~ 31.7h</td><td class="txt">산정된 24h 대비 <b>1.2~1.3배</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">
+    <b>2024년 정리 부채는 별도입니다.</b> 현재 6시간 초과·미완 상태로, 위 월 공수에 포함하지 않았습니다.
+    월 24h 기준으로 환산하면 지금까지만 해도 <b>약 0.25개월치 공수</b>가 과거 미기록 때문에 소모되고 있습니다.
+  </p>
+
+  <h2>4. 숙련도로 설명되지 않는 이유</h2>
+  <p class="h2sub">“처음이라 오래 걸린다”는 예외가 아니라 이 업무의 정상 상태입니다.</p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="v">11.2<span style="font-size:17px">주</span></div>
+      <div class="l">이번 측정 기간</div><div class="n">영업일 56일</div></div>
+    <div class="kpi p"><div class="v">8~16<span style="font-size:17px">주</span></div>
+      <div class="l">담당 인턴 근속 기간</div><div class="n">측정 기간과 거의 동일</div></div>
+  </div>
+
+  <div class="call p">
+    <span class="t">측정 기간이 곧 담당자의 재직 기간입니다</span>
+    이번에 측정한 11.2주는 인턴 한 명의 근속 기간(8~16주) 안에 그대로 들어옵니다.
+    <b>숙련이 붙어 속도가 오를 무렵 담당자가 교체되므로, 학습 곡선이 상각되지 않습니다.</b>
+    따라서 16분/건은 “미숙해서 나온 값”이 아니라 <b>이 업무가 앞으로도 유지될 값</b>으로 보고 산정해야 합니다.
+    숙련자 기준으로 공수를 낮춰 잡으면 실제와 어긋납니다.
+  </div>
+
+  <h2>5. 개선안에 쓰는 법</h2>
+  <p class="h2sub">이 분석은 개선안 2장(현황)·3장(문제점)·6장(기대효과)에 각각 들어갑니다.</p>
+
+  <ul class="pl">
+    <li><b>2장 현황</b> — “측정된 업무의 70%를 차지하는 단일 최대 업무”로 우선순위를 정당화합니다.</li>
+    <li><b>3장 문제점</b> — 2024년 사례를 <u>기록 부재가 만든 비용</u>의 실증으로 씁니다.
+      난이도가 아니라 구조가 만든 차이라는 점이 핵심입니다.</li>
+    <li><b>3장 문제점</b> — 측정 기간 ≈ 인턴 근속 기간이라는 사실로,
+      “교육을 강화하면 된다”는 대안이 왜 유효하지 않은지 설명합니다.</li>
+    <li><b>6장 기대효과</b> — 도구가 줄이는 것은 <b>16분 중 전사·계산·서식 작성 부분</b>과
+      <b>대사 비용 자체</b>입니다. 진행 상태를 도구가 기록하므로 2024년 같은 부채가 재발하지 않습니다.</li>
+  </ul>
+
+  <div class="call a">
+    <span class="t">개선 효과를 정확히 산정하려면 딱 하나만 더 재면 됩니다</span>
+    16분/건을 <b>① 조회·판단(ERP 기존소득 확인)</b>과 <b>② 전사·계산·서식 작성</b>으로 나눠 재보세요.
+    도구가 줄이는 것은 ②이고, ①은 그대로 남습니다. 이 비율만 있으면 절감 공수를 근거 있게 제시할 수 있습니다.
+    <br><br>
+    같은 방식으로 <b>도구 사용 시 건당 시간</b>을 몇 건만 측정하면, 개선 전후를 같은 단위(분/건)로 비교할 수 있습니다.
+  </div>
+
+  <footer>
+    <b>표기</b> · <span class="tag m">측정</span> 실측값 · <span class="tag c">계산</span> 실측값에서 산출 ·
+    <span class="tag e">미측정</span> 값이 없어 반영하지 못한 항목<br>
+    대사 단가는 2025~2026년 7시간을 19개월분으로, 2024년 6시간을 12개월분으로 나눈 값입니다.
+    2024년은 미완이므로 최종 단가는 더 높아집니다.
+  </footer>
+</div>
