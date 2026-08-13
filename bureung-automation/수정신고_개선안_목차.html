@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>수정신고 업무개선안 설계</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0}
+  @media print{
+    body{background:#fff}
+    .wrap{max-width:none;padding:0 12mm}
+    .cover,.tw,.call,.kpi,.sec{break-inside:avoid}
+    h2{break-after:avoid}
+  }
+</style>
+</head>
+<body>
+<style>
+  :root{
+    --paper:#f6f7f9; --card:#ffffff; --card-2:#f0f2f6; --card-3:#e7eaf0;
+    --line:#dadfe8; --line-2:#c3cad6;
+    --ink:#171c26; --ink-2:#4c5666; --ink-3:#7d8798;
+    --accent:#1c5f63; --accent-soft:#e0efef; --accent-ink:#ffffff;
+    --prob:#8f4436; --prob-soft:#f8eae6;
+    --fix:#2f6b3f; --fix-soft:#e6f2e9;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",Segoe UI,Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#0f1319; --card:#161b24; --card-2:#1c222d; --card-3:#242c3a;
+      --line:#2a3240; --line-2:#3a4454;
+      --ink:#e8ecf3; --ink-2:#a3adbd; --ink-3:#788293;
+      --accent:#4fb3b8; --accent-soft:#14282b; --accent-ink:#0a1013;
+      --prob:#d98b78; --prob-soft:#2a1a16;
+      --fix:#68b57f; --fix-soft:#15251b;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0f1319; --card:#161b24; --card-2:#1c222d; --card-3:#242c3a;
+    --line:#2a3240; --line-2:#3a4454;
+    --ink:#e8ecf3; --ink-2:#a3adbd; --ink-3:#788293;
+    --accent:#4fb3b8; --accent-soft:#14282b; --accent-ink:#0a1013;
+    --prob:#d98b78; --prob-soft:#2a1a16;
+    --fix:#68b57f; --fix-soft:#15251b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:15.5px;line-height:1.72;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto;padding:52px 24px 96px}
+
+  /* 표지 */
+  .cover{border-bottom:2px solid var(--ink);padding-bottom:24px;margin-bottom:40px}
+  .kicker{font-size:11.5px;font-weight:800;letter-spacing:.16em;color:var(--accent);margin:0 0 12px}
+  h1{font-size:clamp(27px,4.4vw,38px);line-height:1.24;letter-spacing:-.025em;margin:0 0 14px;
+    font-weight:800;text-wrap:balance}
+  .thesis{font-size:16.5px;color:var(--ink-2);margin:0;max-width:63ch;line-height:1.7}
+  .thesis b{color:var(--ink);font-weight:700}
+  .meta{display:flex;gap:22px;flex-wrap:wrap;margin-top:20px;font-size:12.5px;color:var(--ink-3)}
+  .meta b{color:var(--ink-2);font-weight:600}
+
+  h2{font-size:12px;font-weight:800;letter-spacing:.14em;color:var(--accent);
+    margin:52px 0 18px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+
+  /* 개요 */
+  .lede{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:4px;padding:24px 26px;margin-bottom:14px}
+  .lede p{margin:0 0 15px} .lede p:last-child{margin:0}
+  .lede b{font-weight:700}
+  .pull{font-size:17px;line-height:1.6;color:var(--ink);font-weight:700;letter-spacing:-.015em;
+    margin:22px 0;padding:16px 20px;background:var(--accent-soft);border-radius:6px}
+
+  /* 목차 */
+  .toc{border-top:1px solid var(--line)}
+  .sec{display:grid;grid-template-columns:52px 1fr;gap:0 20px;padding:26px 0;border-bottom:1px solid var(--line)}
+  .no{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--ink-3);line-height:1.2;
+    font-variant-numeric:tabular-nums}
+  .sec h3{margin:0 0 5px;font-size:19px;font-weight:800;letter-spacing:-.02em}
+  .msg{margin:0 0 16px;color:var(--accent);font-size:14px;font-weight:600;line-height:1.6}
+  .sub{list-style:none;margin:0;padding:0}
+  .sub li{padding:8px 0 8px 17px;border-left:2px solid var(--line);position:relative;font-size:14.5px;
+    color:var(--ink-2);line-height:1.65}
+  .sub li b{color:var(--ink);font-weight:700}
+  .sub li + li{margin-top:2px}
+  .sub li .lv{font-family:var(--mono);font-size:12px;color:var(--ink-3);margin-right:7px}
+
+  .ev{margin-top:14px;background:var(--card-2);border:1px solid var(--line);border-radius:6px;
+    padding:13px 16px;font-size:13.5px;color:var(--ink-2)}
+  .ev .h{font-weight:800;color:var(--ink);font-size:11.5px;letter-spacing:.08em;margin-bottom:7px}
+  .ev ul{margin:0;padding-left:17px} .ev li{margin:3px 0}
+  .ev code{font-family:var(--mono);font-size:12.5px;background:var(--card-3);padding:1px 5px;border-radius:3px}
+
+  /* 표 */
+  .tw{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:6px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--card)}
+  th{background:var(--card-3);color:var(--ink-2);font-size:11.5px;font-weight:800;letter-spacing:.05em;
+    text-align:left;padding:10px 13px;white-space:nowrap;border-bottom:1px solid var(--line)}
+  td{padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.6}
+  tr:last-child td{border-bottom:none}
+  td.p{color:var(--prob)} td.f{color:var(--fix);font-weight:600}
+  td b{font-weight:700}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  .tag{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:3px;
+    letter-spacing:.04em;vertical-align:1px}
+  .tag.p{background:var(--prob-soft);color:var(--prob)}
+  .tag.f{background:var(--fix-soft);color:var(--fix)}
+
+  .todo{background:var(--prob-soft);border:1px solid var(--prob);border-radius:6px;padding:18px 22px;margin-top:16px}
+  .todo h4{margin:0 0 10px;font-size:14px;color:var(--prob);font-weight:800}
+  .todo ul{margin:0;padding-left:18px;font-size:14px;color:var(--ink-2)}
+  .todo li{margin:6px 0}
+  .todo b{color:var(--ink)}
+
+  footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--line);
+    font-size:13px;color:var(--ink-3);line-height:1.75}
+</style>
+
+<div class="wrap">
+  <div class="cover">
+    <p class="kicker">업무개선안 · 설계안</p>
+    <h1>사업소득 수정신고 프로세스 개선안</h1>
+    <p class="thesis">
+      수정신고는 <b>어려운 업무가 아니라 옮겨 적는 일이 많은 업무</b>입니다.
+      같은 숫자가 품의서 → 구글시트 → ERP → 홈택스까지 네 번 이동하고 시스템마다 요구하는 형식이 모두 달라,
+      담당자의 숙련도와 무관하게 전사 단계마다 오류가 들어갈 틈이 생깁니다.
+    </p>
+    <div class="meta">
+      <span><b>대상 업무</b> 사업소득 수정신고(간이지급명세서·지급명세서)</span>
+      <span><b>구성</b> 6장</span>
+    </div>
+  </div>
+
+  <h2>개요 — 그대로 쓸 수 있는 초안</h2>
+  <div class="lede">
+    <p>
+      사업소득 수정신고 업무는 재무회계실의 부인 신청 품의를 받아 ERP(옴니이솔)의 소득 데이터를 정정하고,
+      국세청 홈택스에 간이지급명세서와 지급명세서를 수정신고한 뒤 결과를 회신하는 일련의 과정이다.
+      이 과정에서 <b>동일한 소득금액·소득세·지방소득세가 네 개의 시스템을 거치며 반복적으로 옮겨 적히고</b>,
+      각 시스템이 요구하는 입력 형식(열 배치·셀 서식·데이터 타입·파일 분리 단위)이 서로 달라
+      전사(轉寫) 단계마다 값이 어긋날 여지가 있다.
+    </p>
+    <p>
+      특히 담당 인력이 <b>8~16주 근무하는 인턴</b>으로 운영되어, 업무 숙련도가 축적되기 전에 인수인계가 반복된다.
+      절차가 길고 예외 규칙(연도별 세액 특례, 후속 신고 의무 등)이 많아 온보딩 기간이 길어지고,
+      숙련되지 않은 상태에서 세무 신고 데이터를 다루게 되는 구조적 위험이 존재한다.
+    </p>
+    <div class="pull">
+      개선의 방향은 자동화 자체가 아니라 <u>판단과 전사의 분리</u>다.<br>
+      사람이 반드시 해야 하는 판단만 남기고, 기계가 더 정확한 일은 도구가 맡는다.
+    </div>
+    <p>
+      본 개선안은 업무를 <b>사람이 판단해야 하는 영역</b>(ERP상 기존 소득 조회·확인, 부인 대상 검증)과
+      <b>기계가 더 정확하게 처리할 수 있는 영역</b>(전사, 금액 계산, 서식 변환, 후속 절차 판단)으로 분리하고,
+      후자를 도구로 대체하는 것을 골자로 한다. 이를 통해 오류 발생 지점을 줄이고,
+      신규 담당자가 절차를 외우지 않아도 정해진 순서대로 업무를 완료할 수 있는 환경을 마련하고자 한다.
+    </p>
+    <p>
+      아울러 취급 데이터에 <b>주민등록번호가 포함</b>되는 점을 고려해, 모든 처리는 담당자 PC의 브라우저 내에서만
+      이루어지고 외부 서버로 전송되지 않는 구조로 설계하였다.
+    </p>
+  </div>
+
+  <h2>목차 — 장별 핵심 메시지와 담을 내용</h2>
+  <div class="toc">
+
+    <div class="sec">
+      <div class="no">1</div>
+      <div>
+        <h3>개요</h3>
+        <p class="msg">이 업무의 본질은 정확한 전사이며, 지금은 그 전사를 사람이 하고 있다.</p>
+        <ul class="sub">
+          <li><span class="lv">1.1</span> <b>추진 배경</b> — 수정신고 업무의 성격, 담당 인력 운영 구조(단기 인턴)</li>
+          <li><span class="lv">1.2</span> <b>개선 목표</b> — ① 데이터 정합성 확보 ② 처리 시간 단축 ③ 온보딩 기간 단축</li>
+          <li><span class="lv">1.3</span> <b>개선안 요약</b> — 판단·전사 분리 원칙과 도구 도입 개요 (1페이지 요약)</li>
+        </ul>
+        <div class="ev">
+          <div class="h">쓰는 요령</div>
+          <ul>
+            <li>결재자가 1.3만 읽어도 전체를 파악할 수 있게 요약을 앞에 배치</li>
+            <li>목표는 <b>정합성</b>을 첫 번째로 — 시간 단축은 부수 효과로 서술해야 세무 업무 성격에 맞음</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="no">2</div>
+      <div>
+        <h3>현황 분석</h3>
+        <p class="msg">데이터가 어디를 거쳐 가는지 그리면, 오류 지점이 그림 위에 드러난다.</p>
+        <ul class="sub">
+          <li><span class="lv">2.1</span> <b>업무 흐름</b> — 품의 수신 → 시트 정리 → ERP 정정 → 홈택스 신고 → 재무 회신</li>
+          <li><span class="lv">2.2</span> <b>데이터 이동 경로</b> — 동일 금액이 거치는 4개 시스템과 각각의 요구 형식</li>
+          <li><span class="lv">2.3</span> <b>단계별 소요 시간과 반복 횟수</b> — 건당 소득자 수 × 월 수 = 실제 처리 건수</li>
+        </ul>
+        <div class="tw">
+          <table>
+            <thead><tr><th>구간</th><th>옮기는 대상</th><th>요구 형식</th></tr></thead>
+            <tbody>
+              <tr><td><b>품의 → 구글시트</b></td><td>소득자·월별 금액</td><td>시트 H~AC 배치 (중간에 S·T·U 삽입)</td></tr>
+              <tr><td><b>ERP → 구글시트</b></td><td>소득자코드, 기존 소득금액</td><td>이름 셀 내 줄바꿈 표기, 6자리 코드</td></tr>
+              <tr><td><b>구글시트 → ERP</b></td><td>최종 소득금액</td><td>전 셀 <b>텍스트 서식</b>, 소득자코드로만 식별</td></tr>
+              <tr><td><b>구글시트 → 홈택스</b></td><td>최종 소득금액</td><td>컬럼별 타입 상이(숫자·문자 혼합), <b>귀속월별 파일 분리</b></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ev">
+          <div class="h">근거 자료</div>
+          <ul>
+            <li>기존 관리 시트에 기록된 <b>구간별 소요 시간 메모</b>(예: “1칸 1분”, “2칸 2분 4초”)를 인용하면 정량 근거가 됨</li>
+            <li>실제 처리량 예시: 관리 시트 누적 <code>121건</code>의 소득자 그룹, ERP 반영 대상 <code>708행</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="no">3</div>
+      <div>
+        <h3>문제점 — 오류 발생 지점</h3>
+        <p class="msg">개인의 부주의가 아니라 구조가 만드는 오류다. 유형별로 나눠 제시한다.</p>
+        <ul class="sub">
+          <li><span class="lv">3.1</span> <b>전사 구조상의 오류</b> — 붙여넣기만으로 완결되지 않는 열 배치</li>
+          <li><span class="lv">3.2</span> <b>조회·계산 오류</b> — 수기 조회와 수기 계산</li>
+          <li><span class="lv">3.3</span> <b>형식 오류</b> — 시스템별 상이한 입력 규격</li>
+          <li><span class="lv">3.4</span> <b>절차 누락</b> — 조건부로 발생하는 후속 의무</li>
+          <li><span class="lv">3.5</span> <b>인력 구조상의 제약</b> — 단기 근속과 반복되는 온보딩</li>
+        </ul>
+        <div class="tw">
+          <table>
+            <thead><tr><th>유형</th><th>구체적 사례</th><th>결과</th></tr></thead>
+            <tbody>
+              <tr><td class="p"><b>전사</b></td><td>품의 파일마다 열 배치가 다름(기사코드 열 유무). 시트 중간에 S·T·U가 있어 한 번에 붙여넣을 수 없음</td><td>열 밀림·값 어긋남</td></tr>
+              <tr><td class="p"><b>조회</b></td><td>소득자코드를 ERP에서 1명씩 조회해 이름 옆에 수기 입력</td><td>오타 시 <b>다른 소득자에게 신고</b></td></tr>
+              <tr><td class="p"><b>계산</b></td><td>최종금액 = 기존 + 부인 을 수기로 계산</td><td>금액 오신고</td></tr>
+              <tr><td class="p"><b>형식</b></td><td>ERP는 전 셀 텍스트, 홈택스는 컬럼별 타입 상이·귀속월 앞자리 0 유지</td><td>업로드 검증 반려·재작업</td></tr>
+              <tr><td class="p"><b>누락</b></td><td>전년도 이전 소득이면 지급명세서(연별) 후속 신고 필요 / 특정 기간 세액 0원 규칙</td><td>신고 누락·오신고</td></tr>
+              <tr><td class="p"><b>인력</b></td><td>8~16주 근속, 예외 규칙이 다수</td><td>숙련 전 이직, 온보딩 반복</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ev">
+          <div class="h">서술 시 주의</div>
+          <ul>
+            <li>“담당자가 실수했다”가 아니라 <b>“구조가 실수를 유발한다”</b>로 서술 — 개선안의 설득력이 달라짐</li>
+            <li>소득자코드는 <b>중복 불가(Unique) 값</b>이라는 점을 명시하면 오류의 심각도가 전달됨</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="no">4</div>
+      <div>
+        <h3>개선 방안</h3>
+        <p class="msg">전사를 없애고, 사람은 확인과 판단만 한다.</p>
+        <ul class="sub">
+          <li><span class="lv">4.1</span> <b>기본 원칙</b> — 판단(사람) / 전사·계산·서식(도구) 분리</li>
+          <li><span class="lv">4.2</span> <b>도구 구성</b> — 품의 판독 · 코드 사전 · 자동 계산 · 양식 생성 · 진행 관리</li>
+          <li><span class="lv">4.3</span> <b>개선 후 업무 흐름</b> — 사람이 하는 일이 무엇만 남는지 대비 제시</li>
+          <li><span class="lv">4.4</span> <b>데이터 보안 설계</b> — 주민등록번호 취급 원칙, 외부 전송 없음</li>
+          <li><span class="lv">4.5</span> <b>오류 방지 장치</b> — 규칙을 도구가 먼저 점검</li>
+        </ul>
+        <div class="tw">
+          <table>
+            <thead><tr><th>문제</th><th>개선</th><th>남는 사람의 일</th></tr></thead>
+            <tbody>
+              <tr><td>품의 내용 수기 전사</td><td class="f">품의 파일 업로드 시 자동 판독(열 배치 자동 인식)</td><td>내용 확인</td></tr>
+              <tr><td>소득자코드 수기 조회</td><td class="f">주민번호 기준 코드 사전에 축적·자동 적용</td><td>신규자만 조회</td></tr>
+              <tr><td>최종금액 수기 계산</td><td class="f">기존 + 부인 자동 계산, 세액 자동 산정</td><td>기존 소득 조회·입력</td></tr>
+              <tr><td>업로드 양식 수기 작성</td><td class="f">ERP·홈택스 규격에 맞춰 자동 생성, 홈택스는 귀속월별 자동 분리</td><td>업로드·검증</td></tr>
+              <tr><td>진행 상태 수기 관리</td><td class="f">건별 진행 체크리스트, 후속 신고 필요 여부 자동 판정</td><td>완료 확인</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ev">
+          <div class="h">4.5에 넣을 오류 방지 장치</div>
+          <ul>
+            <li>전년도 이전 소득 포함 시 <b>지급명세서 후속 신고 필요</b> 자동 안내 / 미해당 시 “해당 없음” 처리</li>
+            <li>특정 기간 <b>세액 0원 규칙</b> 위반 값 경고</li>
+            <li>소득자코드 누락·기존금액 미입력 칸 수 표시 → 미완 상태로 파일 생성 방지</li>
+            <li>동일 소득자·동일 귀속월 중복 시 합산(홈택스는 소득자별 1행 원칙)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="no">5</div>
+      <div>
+        <h3>검증 결과</h3>
+        <p class="msg">주장이 아니라 실제 데이터로 맞춰 본 결과를 제시한다.</p>
+        <ul class="sub">
+          <li><span class="lv">5.1</span> <b>계산 로직 검증</b> — 기존 관리 데이터 전량 대조</li>
+          <li><span class="lv">5.2</span> <b>양식 적합성 검증</b> — 실제 업로드 양식과 항목·형식 대조</li>
+          <li><span class="lv">5.3</span> <b>자동 판정 정확도</b> — 코드 매칭·구분 판별</li>
+        </ul>
+        <div class="tw">
+          <table>
+            <thead><tr><th>검증 항목</th><th>방법</th><th class="num">결과</th></tr></thead>
+            <tbody>
+              <tr><td>최종금액 산식(기존 + 부인)</td><td>기존 관리 시트 전량 재계산 대조</td><td class="num f">682행 중 불일치 0건</td></tr>
+              <tr><td>소득자코드 자동 매칭</td><td>과거 이력 기반 사전으로 신규 품의 3건 대조</td><td class="num f">대상 10명 전원 매칭</td></tr>
+              <tr><td>내·외국인 구분 판별</td><td>주민·외국인등록번호 기준 자동 분류</td><td class="num f">239건 분류(내 207 / 외 32)</td></tr>
+              <tr><td>홈택스 양식 적합성</td><td>기제출 파일과 항목·타입·표시형식 대조</td><td class="num f">11개 항목 전부 일치</td></tr>
+              <tr><td>ERP 양식 적합성</td><td>실제 양식과 시트명·열 순서·서식 대조</td><td class="num f">전 항목 일치</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ev">
+          <div class="h">쓰는 요령</div>
+          <ul>
+            <li>이 장이 개선안의 <b>신뢰도를 만드는 핵심</b> — “만들었다”가 아니라 “맞는지 확인했다”를 보여줌</li>
+            <li>실제 업로드 검증 통과 여부를 확인했다면 그 결과를 반드시 추가</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="no">6</div>
+      <div>
+        <h3>기대 효과 및 실행 계획</h3>
+        <p class="msg">효과는 정합성 → 시간 → 온보딩 순으로. 도입은 병행 운영부터.</p>
+        <ul class="sub">
+          <li><span class="lv">6.1</span> <b>기대 효과</b> — 정합성 / 처리 시간 / 온보딩 기간</li>
+          <li><span class="lv">6.2</span> <b>도입 계획</b> — 1단계 병행 운영 → 2단계 전환 → 3단계 정착</li>
+          <li><span class="lv">6.3</span> <b>리스크 및 대응</b> — 도구 오류 가능성, 검증 절차 유지</li>
+          <li><span class="lv">6.4</span> <b>향후 과제</b> — 미해결 영역</li>
+        </ul>
+        <div class="tw">
+          <table>
+            <thead><tr><th>구분</th><th>현재</th><th>개선 후</th></tr></thead>
+            <tbody>
+              <tr><td><b>정합성</b></td><td>전사 4구간 전부 수기</td><td class="f">수기 입력은 ERP 조회값 1종만</td></tr>
+              <tr><td><b>처리 시간</b></td><td class="p">(측정값 기입)</td><td class="p">(측정값 기입)</td></tr>
+              <tr><td><b>온보딩</b></td><td>매뉴얼 숙지 후 절차 암기 필요</td><td class="f">화면 순서대로 진행, 규칙은 도구가 점검</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ev">
+          <div class="h">6.3 리스크 — 반드시 넣을 것</div>
+          <ul>
+            <li>도구도 오류가 있을 수 있으므로 <b>업로드 전 검증 절차는 그대로 유지</b>한다고 명시</li>
+            <li>도입 초기에는 기존 방식과 <b>병행 운영</b>하며 결과를 대조</li>
+            <li>담당자 변경 시 인수인계 항목(장부 파일 위치, 코드 사전) 명시</li>
+          </ul>
+        </div>
+        <div class="ev">
+          <div class="h">6.4 향후 과제 — 솔직하게 남길 것</div>
+          <ul>
+            <li>지급명세서(연별) 수정신고의 대조 검증은 아직 수기 — 자동화 여지 있음</li>
+            <li>ERP 기존 소득 조회는 시스템 접근 권한이 필요해 현재 자동화 불가</li>
+            <li>다수 담당자 동시 편집은 파일 기반 관리의 한계</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="todo">
+    <h4>작성 전에 채워야 할 것</h4>
+    <ul>
+      <li><b>소요 시간 측정값</b> — 개선 전/후를 같은 기준으로. 기존 시트에 남겨둔 구간별 시간 메모가 출발점이 됩니다. 1건(소득자 1명 × 월 n건) 기준으로 재보는 것이 가장 설득력 있습니다.</li>
+      <li><b>과거 오류 사례</b> — 실제로 재작업이 발생했던 건이 있다면 익명화해 1~2건. 문제의 심각도를 보여주는 가장 강한 근거입니다.</li>
+      <li><b>연간 처리 건수</b> — 개선 효과를 연 단위로 환산할 때 필요합니다.</li>
+      <li><b>실제 업로드 검증 통과 여부</b> — ERP·홈택스에 실제로 올려 검증까지 통과한 결과. 5장의 신뢰도를 좌우합니다.</li>
+    </ul>
+  </div>
+
+  <footer>
+    이 문서는 개선안 작성을 위한 <b>설계안</b>입니다. 각 장의 표와 수치는 실제 데이터를 대조해 확인한 값으로,
+    본문 작성 시 그대로 인용할 수 있습니다. 측정값이 필요한 항목은 위에 별도 표시했습니다.
+  </footer>
+</div>
+
+</body>
+</html>
