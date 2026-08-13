@@ -1,0 +1,348 @@
+<title>수정신고 엑셀파일 변환기</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --paper:#f6f7f9; --card:#ffffff; --card-2:#f0f2f6; --card-3:#e7eaf0;
+    --line:#dadfe8; --line-2:#c3cad6;
+    --ink:#171c26; --ink-2:#4c5666; --ink-3:#7d8798;
+    --accent:#1c5f63; --accent-soft:#e0efef; --accent-ink:#fff;
+    --prob:#8f4436; --prob-soft:#f8eae6; --prob-line:#e0bdb3;
+    --fix:#2f6b3f; --fix-soft:#e6f2e9; --fix-line:#b3d3bd;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",Segoe UI,Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#0f1319; --card:#161b24; --card-2:#1c222d; --card-3:#242c3a;
+      --line:#2a3240; --line-2:#3a4454;
+      --ink:#e8ecf3; --ink-2:#a3adbd; --ink-3:#788293;
+      --accent:#4fb3b8; --accent-soft:#14282b; --accent-ink:#0a1013;
+      --prob:#d98b78; --prob-soft:#2a1a16; --prob-line:#5a3128;
+      --fix:#68b57f; --fix-soft:#15251b; --fix-line:#2c4a34;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0f1319; --card:#161b24; --card-2:#1c222d; --card-3:#242c3a;
+    --line:#2a3240; --line-2:#3a4454;
+    --ink:#e8ecf3; --ink-2:#a3adbd; --ink-3:#788293;
+    --accent:#4fb3b8; --accent-soft:#14282b; --accent-ink:#0a1013;
+    --prob:#d98b78; --prob-soft:#2a1a16; --prob-line:#5a3128;
+    --fix:#68b57f; --fix-soft:#15251b; --fix-line:#2c4a34;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:15.5px;line-height:1.72;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto;padding:52px 24px 96px}
+
+  .cover{border-bottom:2px solid var(--ink);padding-bottom:22px;margin-bottom:36px}
+  .kicker{font-size:11.5px;font-weight:800;letter-spacing:.16em;color:var(--accent);margin:0 0 12px}
+  h1{font-size:clamp(26px,4.2vw,36px);line-height:1.26;letter-spacing:-.025em;margin:0 0 14px;font-weight:800;text-wrap:balance}
+  .thesis{font-size:16.5px;color:var(--ink-2);margin:0;max-width:64ch;line-height:1.7}
+  .thesis b{color:var(--ink);font-weight:700}
+  h2{font-size:12px;font-weight:800;letter-spacing:.14em;color:var(--accent);
+    margin:52px 0 8px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+  .h2sub{color:var(--ink-2);font-size:14.5px;margin:0 0 18px;max-width:70ch}
+  h3{font-size:17px;font-weight:800;letter-spacing:-.02em;margin:28px 0 8px}
+
+  /* 흐름도 */
+  .flow{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:16px 0}
+  .flow + .flow{margin-top:12px}
+  .flow.before{border-left:3px solid var(--prob)}
+  .flow.after{border-left:3px solid var(--fix)}
+  .flow .cap{font-size:11.5px;font-weight:800;letter-spacing:.1em;margin-bottom:14px}
+  .flow.before .cap{color:var(--prob)} .flow.after .cap{color:var(--fix)}
+  .chain{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+  .node{background:var(--card-2);border:1px solid var(--line);border-radius:8px;padding:9px 13px;
+    font-size:13px;font-weight:700;display:flex;align-items:center;white-space:nowrap}
+  .node.sys{background:var(--card-3)}
+  .link{display:flex;flex-direction:column;justify-content:center;align-items:center;padding:0 9px;min-width:74px}
+  .link .lb{font-size:10.5px;font-weight:800;letter-spacing:.02em;white-space:nowrap;margin-bottom:2px}
+  .link .ar{font-size:15px;line-height:1;color:var(--line-2)}
+  .link.man .lb{color:var(--prob)} .link.man .ar{color:var(--prob)}
+  .link.auto .lb{color:var(--fix)} .link.auto .ar{color:var(--fix)}
+  .flow .tally{margin-top:13px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-2)}
+  .flow .tally b{color:var(--ink);font-weight:800}
+  @media(max-width:640px){
+    .chain{flex-direction:column;align-items:flex-start}
+    .link{flex-direction:row;gap:7px;padding:5px 0 5px 14px;min-width:0}
+    .link .ar{transform:rotate(90deg)}
+    .link .lb{margin-bottom:0}
+  }
+
+  .tw{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:7px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--card)}
+  th{background:var(--card-3);color:var(--ink-2);font-size:11.5px;font-weight:800;letter-spacing:.05em;
+    text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:bottom}
+  td{padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.6}
+  tr:last-child td{border-bottom:none}
+  td.p{color:var(--prob)} td.f{color:var(--fix);font-weight:600}
+  td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  th.num{text-align:right}
+  td b{font-weight:700}
+  tr.tot td{background:var(--card-2);font-weight:800;border-top:2px solid var(--line-2)}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:18px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px}
+  .kpi .v{font-size:28px;font-weight:800;letter-spacing:-.03em;line-height:1;font-family:var(--mono);
+    font-variant-numeric:tabular-nums;color:var(--accent)}
+  .kpi .l{font-size:12.5px;color:var(--ink-2);margin-top:7px;line-height:1.5}
+  .kpi .n{font-size:11px;color:var(--ink-3);margin-top:4px}
+
+  .call{border-radius:8px;padding:18px 22px;margin:20px 0;font-size:15px;line-height:1.7}
+  .call.p{background:var(--prob-soft);border:1px solid var(--prob-line)}
+  .call.a{background:var(--accent-soft);border:1px solid var(--line)}
+  .call.f{background:var(--fix-soft);border:1px solid var(--fix-line)}
+  .call .t{font-weight:800;font-size:15.5px;margin-bottom:7px;display:block}
+  .call.p .t{color:var(--prob)} .call.a .t{color:var(--accent)} .call.f .t{color:var(--fix)}
+  .call b{font-weight:800}
+
+  .steps{display:grid;gap:12px;margin:16px 0}
+  .step{display:grid;grid-template-columns:34px 1fr;gap:0 16px;background:var(--card);
+    border:1px solid var(--line);border-radius:9px;padding:16px 18px}
+  .step .n{width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--accent-ink);
+    display:grid;place-items:center;font-weight:800;font-size:14px;font-family:var(--mono)}
+  .step .n.man{background:var(--prob-soft);color:var(--prob);border:1px solid var(--prob-line)}
+  .step h4{margin:2px 0 5px;font-size:15.5px;font-weight:800}
+  .step p{margin:0;color:var(--ink-2);font-size:14px;line-height:1.65}
+  .step p b{color:var(--ink)}
+  .step .who{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:3px;margin-left:7px;
+    vertical-align:2px;letter-spacing:.03em}
+  .step .who.auto{background:var(--fix-soft);color:var(--fix)}
+  .step .who.man{background:var(--prob-soft);color:var(--prob)}
+
+  ul.pl{padding-left:19px;margin:12px 0} ul.pl li{margin:8px 0;color:var(--ink-2)} ul.pl li b{color:var(--ink)}
+  .note{font-size:13px;color:var(--ink-3);line-height:1.7;margin:10px 0 0}
+  .note b{color:var(--ink-2)}
+  code{font-family:var(--mono);font-size:12.5px;background:var(--card-3);padding:1px 5px;border-radius:3px}
+  footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-3);line-height:1.75}
+</style>
+
+<div class="wrap">
+  <div class="cover">
+    <p class="kicker">업무개선 · 도구 도입 보고</p>
+    <h1>수정신고 엑셀파일 변환기</h1>
+    <p class="thesis">
+      사업소득 수정신고는 <b>같은 숫자를 네 번 옮겨 적는 업무</b>입니다.
+      품의서·구글시트·ERP·홈택스가 요구하는 형식이 모두 달라, 담당자의 숙련도와 무관하게
+      옮기는 단계마다 값이 어긋날 여지가 있었습니다.
+      이 도구는 <b>옮기고 계산하고 서식을 맞추는 일</b>을 대신하고,
+      사람은 <b>ERP에서 조회해 판단하는 일</b>에만 집중하도록 만들었습니다.
+    </p>
+  </div>
+
+  <h2>1. 왜 만들었나</h2>
+  <p class="h2sub">업무가 어려워서가 아니라, 옮겨 적는 구간이 많아서입니다.</p>
+
+  <div class="flow before">
+    <div class="cap">기존 — 사람이 네 번 옮긴다</div>
+    <div class="chain">
+      <div class="node sys">품의서 xlsx</div>
+      <div class="link man"><span class="lb">수기 전사</span><span class="ar">→</span></div>
+      <div class="node">구글시트</div>
+      <div class="link man"><span class="lb">수기 조회·계산</span><span class="ar">→</span></div>
+      <div class="node">업로드 양식</div>
+      <div class="link man"><span class="lb">수기 작성</span><span class="ar">→</span></div>
+      <div class="node sys">ERP · 홈택스</div>
+    </div>
+    <div class="tally">사람이 값을 만지는 구간 <b>4곳</b> · 각 구간마다 형식이 다름</div>
+  </div>
+
+  <div class="flow after">
+    <div class="cap">도입 후 — 사람은 한 번만 입력한다</div>
+    <div class="chain">
+      <div class="node sys">품의서 xlsx</div>
+      <div class="link auto"><span class="lb">파일 업로드</span><span class="ar">→</span></div>
+      <div class="node">변환기</div>
+      <div class="link man"><span class="lb">ERP 조회값 입력</span><span class="ar">→</span></div>
+      <div class="node">자동 계산</div>
+      <div class="link auto"><span class="lb">양식 자동 생성</span><span class="ar">→</span></div>
+      <div class="node sys">ERP · 홈택스</div>
+    </div>
+    <div class="tally">사람이 값을 만지는 구간 <b>1곳</b> — ERP 기존 소득 조회(시스템 접근이 필요해 남김)</div>
+  </div>
+
+  <h3>실제로 오류가 생기던 지점</h3>
+  <p class="h2sub" style="margin-bottom:12px">도구를 만들며 실제 파일을 뜯어보고 확인한 내용입니다.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th style="width:22%">구간</th><th>왜 틀리기 쉬웠나</th><th style="width:26%">틀리면 생기는 일</th></tr></thead>
+      <tbody>
+        <tr><td><b>품의 → 시트</b></td>
+          <td>품의 파일마다 <b>열 배치가 다름</b>(기사코드 열이 있는 것과 없는 것). 셀이 병합돼 있어 값이 첫 행에만 존재.
+            시트에는 중간에 부인자 최종금액 열이 끼어 있어 <b>한 번에 붙여넣을 수 없음</b></td>
+          <td class="p">열이 밀려 다른 항목에 값이 들어감</td></tr>
+        <tr><td><b>소득자코드</b></td>
+          <td>ERP에서 <b>한 명씩 조회</b>해 이름 옆에 수기 입력. 코드는 <b>중복 불가(Unique) 값</b></td>
+          <td class="p">오타 시 <b>다른 소득자 앞으로 신고</b></td></tr>
+        <tr><td><b>금액 계산</b></td>
+          <td>최종금액 = 기존 소득 + 부인 소득 을 건별로 수기 계산</td>
+          <td class="p">금액 오신고 → 재수정신고</td></tr>
+        <tr><td><b>ERP 양식</b></td>
+          <td>모든 셀이 <b>텍스트 서식</b>이어야 업로드됨. 숫자 서식이면 반려</td>
+          <td class="p">검증 반려·재작성</td></tr>
+        <tr><td><b>홈택스 양식</b></td>
+          <td>컬럼마다 <b>타입이 다름</b>(숫자·문자 혼합). 귀속월은 <code>'01'</code>처럼 앞자리 0을 유지해야 함.
+            내·외국인은 <code>'1'/'9'</code>로 구분</td>
+          <td class="p">검증 반려·형식 오류</td></tr>
+        <tr><td><b>월별 분리</b></td>
+          <td>간이지급명세서는 <b>귀속월마다 파일을 따로</b> 만들어 각각 업로드</td>
+          <td class="p">월 누락·중복 제출</td></tr>
+        <tr><td><b>후속 절차</b></td>
+          <td>전년도 이전 소득이면 <b>지급명세서 수정신고</b>가 추가로 필요. 특정 기간은 세액이 0원이어야 함</td>
+          <td class="p">신고 누락</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="call p">
+    <span class="t">이것들은 부주의가 아니라 구조가 만드는 오류입니다</span>
+    형식이 서로 다른 시스템 사이를 사람이 손으로 잇고 있으면, 아무리 꼼꼼해도 확률적으로 발생합니다.
+    담당 인턴의 근속이 <b>8~16주</b>라 숙련으로 상쇄되기도 어렵습니다.
+    <b>사람을 더 조심시키는 방식으로는 해결되지 않는 문제</b>라고 판단해 도구로 접근했습니다.
+  </div>
+
+  <h2>2. 무엇을 하는 도구인가</h2>
+  <p class="h2sub">설치가 필요 없는 HTML 파일 하나입니다. 열어서 쓰고, 데이터는 PC 밖으로 나가지 않습니다.</p>
+
+  <div class="steps">
+    <div class="step"><div class="n">1</div><div>
+      <h4>품의 파일을 읽는다<span class="who auto">자동</span></h4>
+      <p>재무회계실 품의에 붙은 엑셀을 <b>그대로 올리면</b> 소득자·월별 내역을 읽습니다.
+        열 배치는 <b>헤더 이름으로 인식</b>하므로 기사코드 열이 있든 없든 그대로 동작하고,
+        품의 날짜별 시트가 여러 개면 골라서 처리합니다.</p>
+    </div></div>
+    <div class="step"><div class="n">2</div><div>
+      <h4>소득자코드를 채운다<span class="who auto">자동</span></h4>
+      <p>한 번 확인한 코드는 <b>주민번호와 함께 기억</b>해, 같은 사람이 다시 나오면 자동으로 채웁니다.
+        없는 사람만 ERP에서 조회하면 되고, <b>누락된 대상은 명단으로 표시</b>합니다.</p>
+    </div></div>
+    <div class="step"><div class="n man">3</div><div>
+      <h4>ERP에서 기존 소득을 조회해 입력한다<span class="who man">사람</span></h4>
+      <p>도구가 <b>조회할 대상 목록</b>(소득자·코드·귀속월)을 중복 없이 뽑아 줍니다.
+        입력하면 <b>최종금액은 자동 계산</b>되고, 소득금액만 넣으면 세액도 세율에 맞춰 채워집니다.</p>
+    </div></div>
+    <div class="step"><div class="n">4</div><div>
+      <h4>업로드 파일을 만든다<span class="who auto">자동</span></h4>
+      <p>ERP 양식과 홈택스 양식을 <b>각 시스템이 요구하는 형식 그대로</b> 생성합니다.
+        홈택스는 <b>귀속월별로 파일이 나뉘어</b> 나오고, 버튼 한 번에 전부 받을 수 있습니다.</p>
+    </div></div>
+  </div>
+
+  <h2>3. 무엇에 도움이 되나 — 오류 방지</h2>
+  <p class="h2sub">가장 큰 효과입니다. 규칙을 사람이 외우는 대신 도구가 먼저 점검합니다.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th style="width:30%">막는 오류</th><th>어떻게</th></tr></thead>
+      <tbody>
+        <tr><td class="f">열 밀림</td><td>헤더 이름으로 열을 찾고, 시트 배치(22열)로 재구성해 <b>한 번에 붙여넣기</b></td></tr>
+        <tr><td class="f">소득자코드 오타·누락</td><td>주민번호로 자동 매칭. 코드 없는 대상은 <b>명단으로 경고</b>하고 미완 상태를 표시</td></tr>
+        <tr><td class="f">금액 계산 착오</td><td>기존 + 부인을 자동 계산. 수기 덧셈 제거</td></tr>
+        <tr><td class="f">서식 오류</td><td>ERP는 전 셀 텍스트, 홈택스는 컬럼별 타입을 <b>양식 그대로</b> 생성</td></tr>
+        <tr><td class="f">내·외국인 오분류</td><td>주민·외국인등록번호 뒷자리로 <code>'1'/'9'</code> 자동 판별</td></tr>
+        <tr><td class="f">월 누락·중복 제출</td><td>귀속월별 자동 분리. 같은 소득자가 같은 달에 겹치면 <b>합산해 한 줄</b>로</td></tr>
+        <tr><td class="f">후속 신고 누락</td><td>전년도 이전 소득이 있으면 <b>지급명세서 필요</b>를 자동 판정, 없으면 '해당 없음' 처리</td></tr>
+        <tr><td class="f">규칙 위반</td><td>세액이 0원이어야 하는 기간에 값이 있으면 경고</td></tr>
+        <tr><td class="f">미완 상태로 제출</td><td>기존금액 미입력 칸 수를 표시해 <b>빠뜨린 채 파일을 만들지 않도록</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>맞는지 확인한 결과</h3>
+  <p class="h2sub" style="margin-bottom:12px">만든 것에 그치지 않고, 기존 데이터·기제출 파일과 대조해 검증했습니다.</p>
+  <div class="tw">
+    <table>
+      <thead><tr><th>검증 항목</th><th>방법</th><th class="num">결과</th></tr></thead>
+      <tbody>
+        <tr><td>최종금액 산식</td><td>기존 관리 시트 전량 재계산 대조</td><td class="num f">682행 중 불일치 0</td></tr>
+        <tr><td>소득자코드 자동 매칭</td><td>과거 이력 사전으로 신규 품의 3건 대조</td><td class="num f">대상 10명 전원</td></tr>
+        <tr><td>내·외국인 판별</td><td>등록번호 기준 자동 분류</td><td class="num f">239건 분류</td></tr>
+        <tr><td>홈택스 양식 적합성</td><td>기제출 파일과 항목·타입·서식 대조</td><td class="num f">11개 항목 일치</td></tr>
+        <tr><td>ERP 양식 적합성</td><td>실제 양식과 시트명·열 순서·서식 대조</td><td class="num f">전 항목 일치</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>4. 무엇에 도움이 되나 — 효율성</h2>
+  <p class="h2sub">부수 효과입니다. 오류 방지가 우선이고, 시간 단축은 그에 따라옵니다.</p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="v">16<span style="font-size:16px">분</span> → 8.9<span style="font-size:16px">분</span></div>
+      <div class="l">건당 소요</div><div class="n">약 44% 단축</div></div>
+    <div class="kpi"><div class="v">10.5<span style="font-size:16px">h/월</span></div>
+      <div class="l">월 절감</div><div class="n">24.0h → 13.5h</div></div>
+    <div class="kpi"><div class="v">126<span style="font-size:16px">h/년</span></div>
+      <div class="l">연간 절감</div><div class="n">근무일 약 16일</div></div>
+  </div>
+
+  <p class="note">
+    <b>산정 근거</b> · 건당 16분은 실측값(2026-05-18~07-27, 237건 평균)입니다.
+    이를 <b>조회·판단 1/3 : 전사·계산·서식 2/3</b>로 나누고, 도구가 후자를 대체하되
+    업로드·검증 조작은 남는 것으로 계산했습니다. 비율은 담당자 추정치이며 도입 후 실측으로 검증할 예정입니다.
+    보수적으로 잡아도 연 <b>97시간</b>입니다.
+  </p>
+
+  <div class="call f">
+    <span class="t">수치에 포함하지 않은, 더 큰 효과</span>
+    <b>인수인계 비용</b> — 절차를 외우지 않아도 화면 순서대로 진행하면 완료됩니다.
+    담당자가 8~16주마다 바뀌는 구조에서 <b>온보딩 기간 자체를 줄입니다.</b><br><br>
+    <b>사후 대사 비용</b> — 진행 상태를 도구가 기록하므로, 무엇이 처리됐는지 나중에 확인할 수 있습니다.
+    기록이 남지 않았던 과거 연도는 지금도 <b>6시간 넘게 확인 작업</b>이 진행 중이며 아직 끝나지 않았습니다.
+    이 비용은 위 126시간에 들어 있지 않습니다.
+  </div>
+
+  <h2>5. 설계할 때 택한 방향</h2>
+  <p class="h2sub">왜 이렇게 만들었는지에 대한 설명입니다. 질문이 나올 만한 부분입니다.</p>
+  <ul class="pl">
+    <li><b>홈택스 자동 로그인·매크로는 쓰지 않았습니다.</b> 공동인증서는 동시 로그인이 불가해 타인을 강제 로그아웃시킬 수 있고,
+      정부 사이트는 화면이 바뀌면 바로 깨집니다. 대신 <b>국세청이 공식 제공하는 엑셀 일괄 업로드 경로</b>를 그대로 활용했습니다.</li>
+    <li><b>데이터는 PC 밖으로 나가지 않습니다.</b> 주민등록번호가 포함되므로 모든 변환을 브라우저 안에서 처리하고,
+      외부 서버로 전송하지 않습니다.</li>
+    <li><b>설치가 필요 없습니다.</b> HTML 파일 하나라 담당자가 바뀌어도 파일만 전달하면 됩니다.
+      도구 자체의 인수인계 비용을 낮추려는 선택입니다.</li>
+    <li><b>사람의 확인 절차는 그대로 뒀습니다.</b> 업로드 전 검증(오류검증·검증하기)은 기존과 동일하게 수행합니다.
+      도구는 만들어 줄 뿐, 최종 확인은 담당자가 합니다.</li>
+  </ul>
+
+  <h2>6. 남은 한계와 개선 여지</h2>
+  <p class="h2sub">현재 해결하지 못한 부분과, 다음에 손댈 수 있는 곳입니다.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th style="width:26%">항목</th><th>현재 상태</th><th style="width:26%">가능성</th></tr></thead>
+      <tbody>
+        <tr><td><b>ERP 기존 소득 조회</b></td>
+          <td>여전히 수동. 도구는 조회할 <b>목록만</b> 뽑아 줍니다</td>
+          <td>ERP 데이터 접근 권한이 확보되면 자동화 여지 있음</td></tr>
+        <tr><td><b>지급명세서(연별) 수정신고</b></td>
+          <td>미지원. 간이지급명세서만 자동 생성</td>
+          <td class="f">연간 합산과 국세청 기신고액 대조 로직이 달라 <b>별도 설계 필요</b> — 다음 개선 1순위</td></tr>
+        <tr><td><b>홈택스 업로드</b></td>
+          <td>파일 생성까지 자동, <b>업로드·검증은 수동</b></td>
+          <td>의도적으로 남긴 부분(위 5장 참고)</td></tr>
+        <tr><td><b>여러 명 동시 사용</b></td>
+          <td>파일 기반이라 동시에 편집하면 나중 저장이 덮어씀</td>
+          <td>담당자 1인 운영 전제. 다인 운영 시 별도 방식 필요</td></tr>
+        <tr><td><b>실무 검증</b></td>
+          <td class="p">양식 대조까지는 완료. <b>실제 업로드 검증은 미완</b></td>
+          <td class="f">가장 먼저 해야 할 일 — 한 건 실제 제출로 확인</td></tr>
+        <tr><td><b>예외 케이스</b></td>
+          <td>부분부인 등 드문 사례는 데이터가 적어 충분히 검증되지 않음</td>
+          <td>발생할 때마다 확인해 보완</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="call a">
+    <span class="t">도입 방식 제안</span>
+    <b>1단계 · 병행 운영</b> — 기존 방식과 함께 쓰며 결과를 대조합니다. 도구도 틀릴 수 있으므로 검증 절차는 유지합니다.<br>
+    <b>2단계 · 전환</b> — 대조 결과에 문제가 없으면 도구를 주 경로로 전환합니다.<br>
+    <b>3단계 · 보완</b> — 지급명세서 자동화, 예외 케이스 보완을 이어서 진행합니다.
+  </div>
+
+  <footer>
+    도구는 단일 HTML 파일로 제공되며 별도 설치나 계정이 필요 없습니다.
+    검증 수치는 기존 관리 시트와 기제출 파일을 실제로 대조해 확인한 값입니다.
+    효율성 수치 중 조회·전사 비율은 추정치이며, 도입 후 동일 기준으로 재측정할 예정입니다.
+  </footer>
+</div>
