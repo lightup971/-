@@ -144,6 +144,12 @@
   .chip.kb{background:var(--surface-3);color:var(--ink-soft);border:1px solid var(--border-strong)}
   .chip.kh{background:var(--accent-soft);color:var(--accent);border:1px solid var(--border)}
 
+  .envwarn{display:flex;gap:10px;align-items:flex-start;background:var(--warn-bg);
+    border:1px solid var(--warn-bd);color:var(--warn);border-radius:11px;padding:13px 16px;
+    margin-bottom:18px;font-size:13.5px;line-height:1.6}
+  .envwarn b{color:var(--ink)}
+  .envwarn .ic{flex:none}
+  .envwarn[hidden]{display:none}
   .modes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px}
   @media(max-width:600px){.modes{grid-template-columns:1fr}}
   .mode{display:flex;align-items:center;gap:11px;text-align:left;background:var(--surface);
@@ -233,6 +239,13 @@
       <p>구글시트에서 오늘 처리할 건만 붙여넣으면 ERP·홈택스 업로드 파일을 한 번에 만들어 줍니다</p>
     </div>
   </header>
+
+  <div id="envwarn" class="envwarn" hidden>
+    <span class="ic">⚠️</span>
+    <span><b>이 링크 화면에서는 엑셀 파일이 저장되지 않습니다.</b>
+      claude.ai 미리보기는 엑셀·압축 파일 저장을 허용하지 않습니다.
+      <b>HTML 파일을 내려받아 열면</b> 모든 기능이 정상 동작하며, 클로드 로그인도 필요 없습니다.</span>
+  </div>
 
   <nav class="modes" role="tablist">
     <button class="mode" id="mode-intake" role="tab" aria-selected="false">
@@ -1385,11 +1398,35 @@
     updateAllBar();
   }
 
+  function toast(msg,kind){
+    var el=document.getElementById('toast');
+    if(!el){ el=document.createElement('div'); el.id='toast'; document.body.appendChild(el); }
+    el.textContent=msg;
+    el.className='toast show'+(kind?' '+kind:'');
+    clearTimeout(toast._t);
+    toast._t=setTimeout(function(){ el.className='toast'; }, kind==='err'?7000:2600);
+  }
   function saveBytes(bytes,name,mime){
-    var blob=new Blob([bytes],{type:mime});
-    var url=URL.createObjectURL(blob),a=document.createElement('a');
-    a.href=url;a.download=name;document.body.appendChild(a);a.click();
-    setTimeout(function(){URL.revokeObjectURL(url);a.remove();},1500);
+    // claude.ai 아티팩트 화면: xlsx·zip 은 저장 허용 목록에 없어 실패한다 → 안내
+    if(window.claude&&window.claude.downloads){
+      window.claude.downloads.save({filename:name,data:new Blob([bytes],{type:mime})})
+        .then(function(){ toast('내려받았습니다 · '+name,'ok'); })
+        .catch(function(e){
+          var c=e&&e.code;
+          if(c==='rejected_extension'||c==='extension_not_enabled'){
+            toast('이 링크 화면에서는 엑셀·압축 파일을 저장할 수 없습니다. 내려받은 HTML 파일로 열면 정상 저장됩니다.','err');
+          }else if(c==='declined'){ toast('저장을 취소했습니다.'); }
+          else{ toast('저장하지 못했습니다: '+((e&&e.message)||e),'err'); }
+        });
+      return;
+    }
+    try{
+      var blob=new Blob([bytes],{type:mime});
+      var url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url;a.download=name;document.body.appendChild(a);a.click();
+      setTimeout(function(){URL.revokeObjectURL(url);a.remove();},1500);
+      toast('내려받았습니다 · '+name,'ok');
+    }catch(e){ toast('내려받기에 실패했습니다: '+((e&&e.message)||e),'err'); }
   }
   function downloadHtOne(i){
     if(!htBuilt||!htBuilt.files[i])return;
@@ -1505,11 +1542,8 @@
   }
   function download(){
     if(!lastBuilt||!lastBuilt.rows.length)return;
-    var bytes=window.ERPCore.buildXlsx(lastBuilt);
-    var blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-    var url=URL.createObjectURL(blob),a=document.createElement('a');
-    a.href=url;a.download=fileName();document.body.appendChild(a);a.click();
-    setTimeout(function(){URL.revokeObjectURL(url);a.remove();},1500);
+    saveBytes(window.ERPCore.buildXlsx(lastBuilt),fileName(),
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   }
 
   $('go').addEventListener('click',run);
@@ -1741,5 +1775,10 @@
     inp.click();
   });
   paintBook();
+
+  // claude.ai 미리보기(iframe)에서는 파일 저장이 차단된다 → 안내 노출
+  try{
+    if(window.self!==window.top) document.getElementById('envwarn').hidden=false;
+  }catch(e){ document.getElementById('envwarn').hidden=false; }
 })();
 </script>

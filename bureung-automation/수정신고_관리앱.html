@@ -179,6 +179,11 @@
     border-radius:20px;padding:6px 13px;font-size:12.5px}
   .sheets button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 
+  .envwarn{display:flex;gap:10px;align-items:flex-start;background:var(--warn-bg);
+    border:1px solid var(--warn-bd);color:var(--warn);border-radius:11px;padding:13px 16px;
+    margin-bottom:18px;font-size:13.5px;line-height:1.6}
+  .envwarn b{color:var(--ink)} .envwarn .ic{flex:none}
+  .envwarn[hidden]{display:none}
   .empty{text-align:center;color:var(--ink-faint);padding:44px 20px}
   .empty .big{font-size:34px}
   .empty p{margin:10px 0 18px}
@@ -209,6 +214,13 @@
 </div>
 
 <div class="wrap">
+  <div id="envwarn" class="envwarn" hidden>
+    <span class="ic">⚠️</span>
+    <span><b>이 링크 화면에서는 파일이 저장되지 않습니다.</b>
+      claude.ai 미리보기는 엑셀·압축·장부 파일 저장을 허용하지 않습니다.
+      <b>HTML 파일을 내려받아 열면</b> 모든 기능이 정상 동작하며 클로드 로그인도 필요 없습니다.</span>
+  </div>
+
   <!-- ═══ 목록 ═══ -->
   <div id="view-list">
     <div class="listhead">
@@ -1431,6 +1443,19 @@
     } catch (e) { alert('장부 파일을 읽지 못했습니다: ' + (e.message || e)); }
   }
   function download(blob, name) {
+    // claude.ai 아티팩트 화면은 xlsx·zip 저장을 허용하지 않는다 → 안내로 대체
+    if (window.claude && window.claude.downloads) {
+      window.claude.downloads.save({ filename: name, data: blob })
+        .then(function () { toast('내려받았습니다 · ' + name); })
+        .catch(function (e) {
+          var c = e && e.code;
+          if (c === 'rejected_extension' || c === 'extension_not_enabled') {
+            toast('이 링크 화면에서는 파일 저장이 제한됩니다. 내려받은 HTML 파일로 열어 주세요.');
+          } else if (c === 'declined') { toast('저장을 취소했습니다.'); }
+          else { toast('저장하지 못했습니다: ' + ((e && e.message) || e)); }
+        });
+      return;
+    }
     var url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = name; document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
@@ -1944,6 +1969,8 @@
   if (restore()) { markDirty(false); $('filename').textContent = (fileName || '임시 저장본') + ' (브라우저 보관)'; }
   paintBook();
   showList();
+  try{ if(window.self!==window.top) $('envwarn').hidden=false; }
+  catch(e){ $('envwarn').hidden=false; }
 })();
 
 </script>

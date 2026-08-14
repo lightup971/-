@@ -173,6 +173,11 @@
     border-radius:20px;padding:6px 13px;font-size:12.5px}
   .sheets button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 
+  .envwarn{display:flex;gap:10px;align-items:flex-start;background:var(--warn-bg);
+    border:1px solid var(--warn-bd);color:var(--warn);border-radius:11px;padding:13px 16px;
+    margin-bottom:18px;font-size:13.5px;line-height:1.6}
+  .envwarn b{color:var(--ink)} .envwarn .ic{flex:none}
+  .envwarn[hidden]{display:none}
   .empty{text-align:center;color:var(--ink-faint);padding:44px 20px}
   .empty .big{font-size:34px}
   .empty p{margin:10px 0 18px}
@@ -203,6 +208,13 @@
 </div>
 
 <div class="wrap">
+  <div id="envwarn" class="envwarn" hidden>
+    <span class="ic">⚠️</span>
+    <span><b>이 링크 화면에서는 파일이 저장되지 않습니다.</b>
+      claude.ai 미리보기는 엑셀·압축·장부 파일 저장을 허용하지 않습니다.
+      <b>HTML 파일을 내려받아 열면</b> 모든 기능이 정상 동작하며 클로드 로그인도 필요 없습니다.</span>
+  </div>
+
   <!-- ═══ 목록 ═══ -->
   <div id="view-list">
     <div class="listhead">

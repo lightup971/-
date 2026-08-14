@@ -132,6 +132,19 @@
     } catch (e) { alert('장부 파일을 읽지 못했습니다: ' + (e.message || e)); }
   }
   function download(blob, name) {
+    // claude.ai 아티팩트 화면은 xlsx·zip 저장을 허용하지 않는다 → 안내로 대체
+    if (window.claude && window.claude.downloads) {
+      window.claude.downloads.save({ filename: name, data: blob })
+        .then(function () { toast('내려받았습니다 · ' + name); })
+        .catch(function (e) {
+          var c = e && e.code;
+          if (c === 'rejected_extension' || c === 'extension_not_enabled') {
+            toast('이 링크 화면에서는 파일 저장이 제한됩니다. 내려받은 HTML 파일로 열어 주세요.');
+          } else if (c === 'declined') { toast('저장을 취소했습니다.'); }
+          else { toast('저장하지 못했습니다: ' + ((e && e.message) || e)); }
+        });
+      return;
+    }
     var url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = name; document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
@@ -645,4 +658,6 @@
   if (restore()) { markDirty(false); $('filename').textContent = (fileName || '임시 저장본') + ' (브라우저 보관)'; }
   paintBook();
   showList();
+  try{ if(window.self!==window.top) $('envwarn').hidden=false; }
+  catch(e){ $('envwarn').hidden=false; }
 })();
