@@ -1014,10 +1014,12 @@
     var sh = wdoc.getElementsByTagName('sheet');
     for (var s = 0; s < sh.length; s++) {
       var name = sh[s].getAttribute('name');
+      // state="hidden" / "veryHidden" 은 엑셀 화면에 보이지 않는 시트
+      var state = sh[s].getAttribute('state') || 'visible';
       var rid = sh[s].getAttribute('r:id') || sh[s].getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
       var target = relMap[rid];
       if (!target || !byName[target]) continue;
-      sheets.push({ name: name, rows: await readSheet(bytes, byName[target], shared) });
+      sheets.push({ name: name, hidden: state !== 'visible', rows: await readSheet(bytes, byName[target], shared) });
     }
     return sheets;
   }
@@ -1615,12 +1617,19 @@
       var buf=await file.arrayBuffer();
       var sheets=await window.XlsxReader.read(buf);
       sheets=sheets.filter(function(s){return countRows(s.rows)>1;});
+      // 엑셀에서 숨겨진 시트는 제외(사용자 화면에 보이는 것과 맞춘다)
+      var visible=sheets.filter(function(s){return !s.hidden;});
+      var hiddenCount=sheets.length-visible.length;
+      if(visible.length) sheets=visible;
       if(!sheets.length) throw new Error('내용이 있는 시트를 찾지 못했습니다.');
       loadedSheets=sheets;
       drop.classList.add('done');
       drop.querySelector('.drop-ic').textContent='✅';
       drop.querySelector('.drop-t').textContent=file.name;
-      drop.querySelector('.drop-s').textContent='시트 '+sheets.length+'개 · 아래에서 처리할 품의를 고르세요';
+      drop.querySelector('.drop-s').textContent=
+        (sheets.length>1 ? '시트 '+sheets.length+'개 · 아래에서 처리할 품의를 고르세요'
+                         : '시트 1개 · 바로 변환했습니다')
+        + (hiddenCount ? ' (숨겨진 시트 '+hiddenCount+'개 제외)' : '');
       paintSheets();
       pickSheet(0);
     }catch(err){

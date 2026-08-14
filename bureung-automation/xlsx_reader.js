@@ -115,10 +115,16 @@
     var sh = wdoc.getElementsByTagName('sheet');
     for (var s = 0; s < sh.length; s++) {
       var name = sh[s].getAttribute('name');
+      // state="hidden" / "veryHidden" 은 엑셀 화면에 보이지 않는 시트
+      var state = sh[s].getAttribute('state') || 'visible';
       var rid = sh[s].getAttribute('r:id') || sh[s].getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
       var target = relMap[rid];
       if (!target || !byName[target]) continue;
-      sheets.push({ name: name, rows: await readSheet(bytes, byName[target], shared) });
+      sheets.push({
+        name: name,
+        hidden: state !== 'visible',
+        rows: await readSheet(bytes, byName[target], shared)
+      });
     }
     return sheets;
   }

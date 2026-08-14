@@ -478,11 +478,18 @@
     try {
       var sheets = (await window.XlsxReader.read(await file.arrayBuffer()))
         .filter(function (s) { return countRows(s.rows) > 1; });
+      // 엑셀에서 숨겨진 시트는 제외
+      var visible = sheets.filter(function (s) { return !s.hidden; });
+      var hiddenCount = sheets.length - visible.length;
+      if (visible.length) sheets = visible;
       if (!sheets.length) throw new Error('내용이 있는 시트를 찾지 못했습니다.');
       loadedSheets = sheets; loadedSheets.fileName = file.name;
       d.querySelector('.ic').textContent = '✅';
       d.querySelector('.t').textContent = file.name;
-      d.querySelector('.s').textContent = '시트 ' + sheets.length + '개 · 등록할 품의를 고르세요';
+      d.querySelector('.s').textContent =
+        (sheets.length > 1 ? '시트 ' + sheets.length + '개 · 등록할 품의를 고르세요'
+                           : '시트 1개 · 아래 버튼으로 등록하세요')
+        + (hiddenCount ? ' (숨겨진 시트 ' + hiddenCount + '개 제외)' : '');
       paintSheets();
     } catch (err) {
       d.querySelector('.ic').textContent = '⚠️';
