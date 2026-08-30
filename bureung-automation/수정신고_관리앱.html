@@ -330,6 +330,20 @@
 
   var ERP_CODES  = ['INCMPER_NO','PAY_YM','RVERS_YM','PAY_DT','BIZAREA_CD','DEPT_CD','WGS_AMT','BIZTP_FG_CD','TAX_RT','INTAX_AMT','LOCINTAX_AMT'];
   var ERP_LABELS = ['소득자코드','지급연월','귀속년월','지급일','사업장코드','부서코드','지급액','업종구분코드','세율','소득세금액','지방소득세금액'];
+  // 원본 양식 7행: 항목 설명행. 실제 데이터는 8행부터 들어간다.
+  var ERP_DESC = [
+    "타입 : 문자\n길이 : 20\n필수 : N\n설명 : 소득자코드를 입력합니다.  (최대 20자리까지 입력 가능합니다.)",
+    "타입 : 문자\n길이 : 6\n필수 : Y\n설명 : 소득 지급년월을 입력합니다.",
+    "타입 : 문자\n길이 : 6\n필수 : Y\n설명 : 소득의 귀속년월을 입력합니다. ",
+    "타입 : 문자\n길이 : 8\n필수 : Y\n설명 : 소득 지급일을 입력합니다.",
+    "타입 : 문자\n길이 : 7\n필수 : Y\n설명 : 사업장코드를 입력합니다. ",
+    "타입 : 문자\n길이 : 20\n필수 : Y\n설명 : 부서코드를 입력합니다. ",
+    "타입 : 숫자\n길이 : 19\n필수 : Y\n설명 : 지급액을 입력합니다. ",
+    "타입 : 문자\n길이 : 7\n필수 : Y\n설명 : 업종코드표를 참고하여 업종코드를 입력합니다. ",
+    "타입 : 숫자\n길이 : 19\n필수 : N\n설명 : 업종코드표를 참고하여 세율을 입력합니다. ",
+    "타입 : 숫자\n길이 : 19\n필수 : N\n설명 : 소득세를 입력합니다. ",
+    "타입 : 숫자\n길이 : 19\n필수 : N\n설명 : 지방소득세를 입력합니다. "
+  ];
 
   var DEFAULTS = {
     COMPANY_CD: '1000', COMPANY_NM: '(주)부릉', BIZR_NO: '2068673707',
@@ -523,7 +537,8 @@
       [cfg.COMPANY_CD, cfg.COMPANY_NM, cfg.BIZR_NO],
       [],
       ERP_CODES.slice(),
-      ERP_LABELS.slice()
+      ERP_LABELS.slice(),
+      ERP_DESC.slice()
     ];
     built.rows.forEach(function (r) { aoa.push(r.cells); });
     return aoa;
